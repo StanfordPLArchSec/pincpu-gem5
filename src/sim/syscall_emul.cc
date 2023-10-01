@@ -280,6 +280,13 @@ brkFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> new_brk)
     if (new_brk == 0 || (new_brk == brk_point))
         return brk_point;
 
+    if (new_brk < brk_point) {
+        const auto bytes_freed = brk_point - new_brk;
+        BufferArg buf(new_brk, bytes_freed);
+        std::memset(buf.bufferPtr(), 0, bytes_freed);
+        buf.copyOut(SETranslatingPortProxy(tc));
+    }
+
     mem_state->updateBrkRegion(brk_point, new_brk);
 
     DPRINTF_SYSCALL(Verbose, "brk: break point changed to: %#X\n",
