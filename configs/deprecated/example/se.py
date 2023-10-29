@@ -233,6 +233,9 @@ system.cpu_clk_domain = SrcClockDomain(
 if args.elastic_trace_en:
     CpuConfig.config_etrace(CPUClass, system.cpu, args)
 
+# for cpu in system.cpu:
+#     cpu.usePerf = True
+
 # All cpus belong to a common cpu_clk_domain, therefore running at a common
 # frequency.
 for cpu in system.cpu:

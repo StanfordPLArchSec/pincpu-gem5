@@ -33,6 +33,8 @@
 
 #include "base/addr_range.hh"
 #include "base/logging.hh"
+#include "base/trace.hh"
+#include "debug/MemPool.hh"
 
 namespace gem5
 {
@@ -162,7 +164,10 @@ MemPools::populate(const AddrRangeList &memories)
 Addr
 MemPools::allocPhysPages(int npages, int pool_id)
 {
-    return pools[pool_id].allocate(npages);
+    const Addr result = pools[pool_id].allocate(npages);
+    DPRINTF(MemPool, "MemPools::allocPhysPage: npages=%d pool_id=%d return=%#x\n",
+            npages, pool_id, result);
+    return result;
 }
 
 void
