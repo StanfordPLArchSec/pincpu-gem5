@@ -82,6 +82,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <linux/kdev_t.h>
 
 #include <cerrno>
 #include <memory>
@@ -925,7 +926,7 @@ openatFunc(SyscallDesc *desc, ThreadContext *tc,
     std::vector<std::string> special_paths =
             { "/proc/meminfo", "/system/", "/platform/", "/etc/passwd",
               "/proc/self/maps", "/dev/urandom",
-              "/sys/devices/system/cpu/online" };
+              "/sys/devices/system/cpu/online", "/proc/loadavg" };
     for (auto entry : special_paths) {
         if (startswith(path, entry)) {
             sim_fd = OS::openSpecialFile(abs_path, p, tc);
@@ -2287,6 +2288,20 @@ clock_getresFunc(SyscallDesc *desc, ThreadContext *tc, int clk_id,
     tp->tv_sec = 0;
     tp->tv_nsec = 1;
 
+    return 0;
+}
+
+/// Target clock_nanosleep() function.
+template <class OS>
+SyscallReturn
+clock_nanosleepFunc(SyscallDesc *desc, ThreadContext *tc, int clk_id,
+		    int flags, VPtr<typename OS::timespec> request,
+		    VPtr<typename OS::timespec> remain)
+{
+    if (remain) {
+        remain->tv_sec = 0;
+        remain->tv_nsec = 0;
+    }
     return 0;
 }
 
