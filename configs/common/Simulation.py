@@ -425,6 +425,10 @@ def takeSimpointCheckpoints(simpoints, interval_length, cptdir):
             break
         index += 1
 
+    if exit_cause == "simpoint starting point found":
+        exit_cause = m5.simulate()
+        assert exit_cause != "simpoint starting point found"
+
     print("Exiting @ tick %i because %s" % (m5.curTick(), exit_cause))
     print("%d checkpoints taken" % num_checkpoints)
     sys.exit(code)
