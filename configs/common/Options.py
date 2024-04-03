@@ -172,6 +172,8 @@ def addNoISAOptions(parser):
 
     parser.add_argument("--memchecker", action="store_true")
 
+    parser.add_argument("--max-stack-size", type=str, default="64MB")
+
     # Cache Options
     parser.add_argument(
         "--external-memory-system",
