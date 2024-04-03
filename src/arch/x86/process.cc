@@ -116,6 +116,7 @@ X86_64Process::X86_64Process(const ProcessParams &params,
     Addr next_thread_stack_base = stack_base - max_stack_size;
     Addr mmap_end = std::min<Addr>(0x7FFFF7FFF000ULL, next_thread_stack_base);
 
+    DPRINTF(Stack, "Max Stack Size: %x\n", max_stack_size);
     memState = std::make_shared<MemState>(
             this, brk_point, stack_base, max_stack_size,
             next_thread_stack_base, mmap_end);
@@ -397,6 +398,7 @@ X86_64Process::initState()
             tc->setMiscReg(misc_reg::Cr8, cr8);
 
             tc->setMiscReg(misc_reg::Mxcsr, 0x1f80);
+	    tc->setMiscReg(misc_reg::Fcw, 0x037f);
             tc->setMiscReg(misc_reg::Ftw, 0xffff);
             tc->setMiscReg(misc_reg::Fcw, 0x037f);
 
@@ -617,6 +619,7 @@ X86_64Process::initState()
             tc->setMiscReg(misc_reg::Cr0, cr0);
 
             tc->setMiscReg(misc_reg::Mxcsr, 0x1f80);
+	    tc->setMiscReg(misc_reg::Fcw, 0x037f);
             tc->setMiscReg(misc_reg::Ftw, 0xffff);
             tc->setMiscReg(misc_reg::Fcw, 0x037f);
 
@@ -753,6 +756,7 @@ I386Process::initState()
         tc->setMiscReg(misc_reg::Cr0, cr0);
 
         tc->setMiscReg(misc_reg::Mxcsr, 0x1f80);
+	tc->setMiscReg(misc_reg::Fcw, 0x037f);
         tc->setMiscReg(misc_reg::Ftw, 0xffff);
         tc->setMiscReg(misc_reg::Fcw, 0x037f);
     }
