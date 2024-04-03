@@ -251,6 +251,9 @@ if ObjectList.is_kvm_cpu(CPUClass) or ObjectList.is_kvm_cpu(FutureClass):
     else:
         fatal("KvmCPU can only be used in SE mode with x86")
 
+for process in multiprocesses:
+    process.maxStackSize = args.max_stack_size
+        
 # Sanity check
 if args.simpoint_profile:
     if not ObjectList.is_noncaching_cpu(CPUClass):
