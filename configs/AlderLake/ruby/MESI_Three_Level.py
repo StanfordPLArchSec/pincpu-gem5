@@ -106,8 +106,7 @@ def create_system(
     assert l2_bits == 0
 
     # Create P-core private caches
-    # FIXME: Should just do pcores.
-    for i, cpu in enumerate(cpus): 
+    for i, cpu in enumerate(cpus[:8]):
         l0i_cache = L0Cache(
             size = "32kB",
             assoc = 8,
@@ -123,8 +122,6 @@ def create_system(
             start_index_bit = block_size_bits,
             replacement_policy = TreePLRURP(),
         )
-
-        clk_domain = cpus[i].clk_domain
 
         # Ruby prefetcher
         prefetcher = RubyPrefetcher(
@@ -144,13 +141,13 @@ def create_system(
             prefetcher = prefetcher,
             enable_prefetch = True,
             send_evictions = send_evicts(options),
-            clk_domain = clk_domain,
+            clk_domain = cpu.clk_domain,
             ruby_system = ruby_system,
         )
 
         cpu_seq = RubySequencer(
             version = i,
-            clk_domain = clk_domain,
+            clk_domain = cpu.clk_domain,
             dcache = l0d_cache,
             ruby_system = ruby_system,
         )
@@ -200,6 +197,103 @@ def create_system(
         l1_cntrl.requestFromL2.in_port = ruby_system.network.out_port
         l1_cntrl.responseFromL2 = MessageBuffer()
         l1_cntrl.responseFromL2.in_port = ruby_system.network.out_port
+
+    for i, cpu in enumerate(cpus[8:]):
+        assert cpu.is_ecore()
+        i += 8
+
+        l0i_cache = L0Cache(
+            size = "64kB",
+            assoc = 8,
+            is_icache = True,
+            start_index_bit = block_size_bits,
+            replacement_policy = TreePLRURP(),
+        )
+
+        l0d_cache = L0Cache(
+            size = "32kB",
+            assoc = 8,
+            is_icache = False,
+            start_index_bit = block_size_bits,
+            replacement_policy = TreePLRURP(),
+        )
+
+        # Ruby prefetcher
+        prefetcher = RubyPrefetcher(
+            num_streams = 16,
+            unit_filter = 256,
+            nonunit_filter = 256,
+            train_misses = 5,
+            num_startup_pfs = 4,
+            cross_page = True,
+        )
+
+        l0_cntrl = L0Cache_Controller(
+            version = i,
+            Icache = l0i_cache,
+            Dcache = l0d_cache,
+            transitions_per_cycle = options.l0_transitions_per_cycle,
+            prefetcher = prefetcher,
+            enable_prefetch = True,
+            send_evictions = send_evicts(options),
+            clk_domain = cpu.clk_domain,
+            ruby_system = ruby_system,
+        )
+
+        cpu_seq = RubySequencer(
+            version = i,
+            clk_domain = cpu.clk_domain,
+            dcache = l0d_cache,
+            ruby_system = ruby_system,
+        )
+
+        l0_cntrl.sequencer = cpu_seq
+
+        # TODO: this should be shared.
+        l1_cache = L1Cache(
+            size = "1280kB",
+            assoc = 10,
+            start_index_bit = block_size_bits,
+            is_icache = False,
+        )
+
+        l1_cntrl = L1Cache_Controller(
+            version = i,
+            cache = l1_cache,
+            l2_select_num_bits = l2_bits,
+            cluster_id = 0,
+            transitions_per_cycle = options.l1_transitions_per_cycle,
+            ruby_system = ruby_system,
+        )
+
+        exec("ruby_system.l0_cntrl%d = l0_cntrl" % i)
+        exec("ruby_system.l1_cntrl%d = l1_cntrl" % i)
+
+        cpu_sequencers.append(cpu_seq)
+        l0_cntrl_nodes.append(l0_cntrl)
+        l1_cntrl_nodes.append(l1_cntrl)
+
+        # Connect the L0 and L1 controllers
+        l0_cntrl.prefetchQueue = MessageBuffer()
+        l0_cntrl.mandatoryQueue = MessageBuffer()
+        l0_cntrl.bufferToL1 = MessageBuffer(ordered=True)
+        l1_cntrl.bufferFromL0 = l0_cntrl.bufferToL1
+        l0_cntrl.bufferFromL1 = MessageBuffer(ordered=True)
+        l1_cntrl.bufferToL0 = l0_cntrl.bufferFromL1
+
+        # Connect the L1 controllers and the network
+        l1_cntrl.requestToL2 = MessageBuffer()
+        l1_cntrl.requestToL2.out_port = ruby_system.network.in_port
+        l1_cntrl.responseToL2 = MessageBuffer()
+        l1_cntrl.responseToL2.out_port = ruby_system.network.in_port
+        l1_cntrl.unblockToL2 = MessageBuffer()
+        l1_cntrl.unblockToL2.out_port = ruby_system.network.in_port
+
+        l1_cntrl.requestFromL2 = MessageBuffer()
+        l1_cntrl.requestFromL2.in_port = ruby_system.network.out_port
+        l1_cntrl.responseFromL2 = MessageBuffer()
+        l1_cntrl.responseFromL2.in_port = ruby_system.network.out_port
+        
         
     # Shared L3 cache
     l2_cache = L2Cache(
