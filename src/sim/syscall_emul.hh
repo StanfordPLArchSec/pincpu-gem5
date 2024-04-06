@@ -1570,11 +1570,14 @@ template <class OS>
 SyscallReturn
 statxFunc(SyscallDesc *desc, ThreadContext *tc,
           int dirfd, VPtr<> pathname, int flags,
-          unsigned int mask, VPtr<typename OS::tgt_statx> tgt_statx)
+          // unsigned int mask, VPtr<typename OS::tgt_statx> tgt_statx)
+	  unsigned int mask, Addr tgt_statx_raw)
 {
     std::string path;
 
-    if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
+    const auto proxy = SETranslatingPortProxy(tc);
+
+    if (!proxy.tryReadString(path, pathname))
         return -EFAULT;
 
     if (path.empty() && !(flags & OS::TGT_AT_EMPTY_PATH))
@@ -1599,7 +1602,8 @@ statxFunc(SyscallDesc *desc, ThreadContext *tc,
     if (result < 0)
         return -errno;
 
-    copyOutStatxBuf<OS>(tgt_statx, &host_buf);
+    if (!proxy.tryWriteBlob(tgt_statx_raw, &host_buf, sizeof host_buf))
+      return -EFAULT;
 
     return 0;
 }
