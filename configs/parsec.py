@@ -41,99 +41,34 @@
 # "m5 test.py"
 
 import argparse
-import sys
 import os
+import sys
 
 import m5
 from m5.defines import buildEnv
 from m5.objects import *
 from m5.params import NULL
-from m5.util import addToPath, fatal, warn
+from m5.util import (
+    addToPath,
+    fatal,
+    warn,
+)
+
 from gem5.isas import ISA
-from gem5.runtime import get_runtime_isa
 
 addToPath("../../")
 
-from ruby import Ruby
-
-from common import Options
-from common import Simulation
-from common import CacheConfig
-from common import CpuConfig
-from common import ObjectList
-from common import MemConfig
-from common.FileSystemConfig import config_filesystem
-from common.Caches import *
-from common.cpu2000 import *
-
-sys.argv.extend(
-    [
-        "--umodel=alk-p",
-        # caches
-        "--caches",
-        "--l1d_size=48kB",
-        "--l1d_assoc=12",
-        "--l1i_size=32kB",
-        "--l1i_assoc=8",
-        "--l2_size=1280kB",
-        "--l2_assoc=10",
-        "--l3_size=1920kB",
-        "--l3_assoc=12",
-    ]
+from common import (
+    CacheConfig,
+    CpuConfig,
+    MemConfig,
+    ObjectList,
+    Options,
+    Simulation,
 )
-
-
-def get_processes(args):
-    """Interprets provided args and returns a list of processes"""
-
-    multiprocesses = []
-    inputs = []
-    outputs = []
-    errouts = []
-    pargs = []
-
-    workloads = args.cmd.split(";")
-    if args.input != "":
-        inputs = args.input.split(";")
-    if args.output != "":
-        outputs = args.output.split(";")
-    if args.errout != "":
-        errouts = args.errout.split(";")
-    if args.options != "":
-        pargs = args.options.split(";")
-
-    idx = 0
-    for wrkld in workloads:
-        process = Process(pid=100 + idx)
-        process.executable = wrkld
-        process.cwd = os.getcwd()
-        process.gid = os.getgid()
-
-        if args.env:
-            with open(args.env, "r") as f:
-                process.env = [line.rstrip() for line in f]
-
-        if len(pargs) > idx:
-            process.cmd = [wrkld] + pargs[idx].split()
-        else:
-            process.cmd = [wrkld]
-
-        if len(inputs) > idx:
-            process.input = inputs[idx]
-        if len(outputs) > idx:
-            process.output = outputs[idx]
-        if len(errouts) > idx:
-            process.errout = errouts[idx]
-
-        multiprocesses.append(process)
-        idx += 1
-
-    if args.smt:
-        assert args.cpu_type == "DerivO3CPU"
-        return multiprocesses, idx
-    else:
-        return multiprocesses, 1
-
+from common.Caches import *
+from common.FileSystemConfig import config_filesystem
+from ruby import Ruby
 
 warn(
     "The se.py script is deprecated. It will be removed in future releases of "
@@ -147,48 +82,34 @@ Options.addSEOptions(parser)
 if "--ruby" in sys.argv:
     Ruby.define_options(parser)
 
+
 args = parser.parse_args()
 
-multiprocesses = []
-numThreads = 1
+#################################
+### Add PARSEC-specific args. ###
+args.smt = True
+#################################
 
-if args.bench:
-    apps = args.bench.split("-")
-    if len(apps) != args.num_cpus:
-        print("number of benchmarks not equal to set num_cpus!")
-        sys.exit(1)
+process = Process(pid=100)
+process.executable = args.cmd
+process.cwd = os.getcwd()
+process.gid = os.getgid()
+if args.input:
+    process.input = args.input
+if args.output:
+    process.output = args.output
+if args.errout:
+    process.errout = args.errout
+process.cmd = [args.cmd] + args.options.split()
+multiprocesses = [process]
+numThreads = 2
 
-    for app in apps:
-        try:
-            if get_runtime_isa() == ISA.ARM:
-                exec(
-                    "workload = %s('arm_%s', 'linux', '%s')"
-                    % (app, args.arm_iset, args.spec_input)
-                )
-            else:
-                # TARGET_ISA has been removed, but this is missing a ], so it
-                # has incorrect syntax and wasn't being used anyway.
-                exec(
-                    "workload = %s(buildEnv['TARGET_ISA', 'linux', '%s')"
-                    % (app, args.spec_input)
-                )
-            multiprocesses.append(workload.makeProcess())
-        except:
-            print(
-                f"Unable to find workload for {get_runtime_isa().name()}: {app}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-elif args.cmd:
-    multiprocesses, numThreads = get_processes(args)
-else:
-    print("No workload specified. Exiting!\n", file=sys.stderr)
-    sys.exit(1)
+CPUClass = X86O3CPU
+test_mem_mode = "timing"
 
-
-(CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
 CPUClass.numThreads = numThreads
 
+# TODO: Remove this.
 # Check -- do not allow SMT with multiple CPUs
 if args.smt and args.num_cpus > 1:
     fatal("You cannot use SMT with multiple CPUs!")
@@ -226,15 +147,12 @@ system.cpu_clk_domain = SrcClockDomain(
 if args.elastic_trace_en:
     CpuConfig.config_etrace(CPUClass, system.cpu, args)
 
-# for cpu in system.cpu:
-#     cpu.usePerf = True
-
 # All cpus belong to a common cpu_clk_domain, therefore running at a common
 # frequency.
 for cpu in system.cpu:
     cpu.clk_domain = system.cpu_clk_domain
 
-if ObjectList.is_kvm_cpu(CPUClass) or ObjectList.is_kvm_cpu(FutureClass):
+if ObjectList.is_kvm_cpu(CPUClass):
     if buildEnv["USE_X86_ISA"]:
         system.kvm_vm = KvmVM()
         system.m5ops_base = max(0xFFFF0000, Addr(args.mem_size).getValue())
@@ -243,9 +161,6 @@ if ObjectList.is_kvm_cpu(CPUClass) or ObjectList.is_kvm_cpu(FutureClass):
             process.kvmInSE = True
     else:
         fatal("KvmCPU can only be used in SE mode with x86")
-
-for process in multiprocesses:
-    process.maxStackSize = args.max_stack_size
 
 # Sanity check
 if args.simpoint_profile:
@@ -311,4 +226,4 @@ if args.wait_gdb:
     system.workload.wait_for_remote_gdb = True
 
 root = Root(full_system=False, system=system)
-Simulation.run(args, root, system, FutureClass)
+Simulation.run(args, root, system, CPUClass)
