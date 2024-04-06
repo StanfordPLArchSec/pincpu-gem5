@@ -132,20 +132,17 @@ system.cpu_clk_domain = SrcClockDomain(
     clock=args.cpu_clock, voltage_domain=system.cpu_voltage_domain
 )
 
-# If elastic tracing is enabled, then configure the cpu and attach the elastic
-# trace probe
-if args.elastic_trace_en:
-    CpuConfig.config_etrace(CPUClass, system.cpu, args)
+pcore_clk_domain = SrcClockDomain(clock='3.4GHz', voltage_domain=system.cpu_voltage_domain)
+ecore_clk_domain = SrcClockDomain(clock='2.5GHz', voltage_domain=system.cpu_voltage_domain)
 
-# for cpu in system.cpu:
-#     cpu.usePerf = True
+for cpu in cpus:
+    if cpu.is_pcore():
+        cpu.clk_domain = pcore_clk_domain
+    elif cpu.is_ecore():
+        cpu.clk_domain = ecore_clk_domain
+    else:
+        assert False
 
-# All cpus belong to a common cpu_clk_domain, therefore running at a common
-# frequency.
-for cpu in system.cpu:
-    cpu.clk_domain = system.cpu_clk_domain
-
-for cpu in system.cpu:
     cpu.workload = process
     cpu.createThreads()
 
