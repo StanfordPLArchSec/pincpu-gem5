@@ -59,9 +59,9 @@ from m5.params import NULL
 from m5.util import addToPath, fatal, warn
 from gem5.isas import ISA
 from gem5.runtime import get_runtime_isa
-import AlderLake
+from CPU import GoldenCove, Gracemont
 
-addToPath("../../")
+addToPath("../")
 
 from ruby import Ruby
 
@@ -96,16 +96,14 @@ if args.errout:
     process.errout = args.errout
 multiprocesses = [process]
 
-# CPUClass = X86O3CPU
-CPUClass = AlderLake.GoldenCove
 num_pcores = 8
 num_ecores = 8
 
 cpus = []
 for i in range(num_pcores):
-    cpus.append(AlderLake.GoldenCove(cpu_id=len(cpus)))
+    cpus.append(GoldenCove(cpu_id=len(cpus)))
 for i in range(num_ecores):
-    cpus.append(AlderLake.Gracemont(cpu_id=len(cpus)))
+    cpus.append(Gracemont(cpu_id=len(cpus)))
 
 np = args.num_cpus
 mp0_path = multiprocesses[0].executable
@@ -132,8 +130,12 @@ system.cpu_clk_domain = SrcClockDomain(
     clock=args.cpu_clock, voltage_domain=system.cpu_voltage_domain
 )
 
-pcore_clk_domain = SrcClockDomain(clock='3.4GHz', voltage_domain=system.cpu_voltage_domain)
-ecore_clk_domain = SrcClockDomain(clock='2.5GHz', voltage_domain=system.cpu_voltage_domain)
+pcore_clk_domain = SrcClockDomain(
+    clock="3.4GHz", voltage_domain=system.cpu_voltage_domain
+)
+ecore_clk_domain = SrcClockDomain(
+    clock="2.5GHz", voltage_domain=system.cpu_voltage_domain
+)
 
 for cpu in cpus:
     if cpu.is_pcore():
@@ -146,35 +148,24 @@ for cpu in cpus:
     cpu.workload = process
     cpu.createThreads()
 
-if args.ruby:
-    Ruby.create_system(args, False, system)
-    assert args.num_cpus == len(system.ruby._cpu_ports)
+Ruby.create_system(args, False, system)
+assert args.num_cpus == len(system.ruby._cpu_ports)
 
-    system.ruby.clk_domain = SrcClockDomain(
-        clock=args.ruby_clock, voltage_domain=system.voltage_domain
-    )
-    for i in range(np):
-        ruby_port = system.ruby._cpu_ports[i]
+system.ruby.clk_domain = SrcClockDomain(
+    clock=args.ruby_clock, voltage_domain=system.voltage_domain
+)
+for i in range(np):
+    ruby_port = system.ruby._cpu_ports[i]
 
-        # Create the interrupt controller and connect its ports to Ruby
-        # Note that the interrupt controller is always present but only
-        # in x86 does it have message ports that need to be connected
-        system.cpu[i].createInterruptController()
+    # Create the interrupt controller and connect its ports to Ruby
+    # Note that the interrupt controller is always present but only
+    # in x86 does it have message ports that need to be connected
+    system.cpu[i].createInterruptController()
 
-        # Connect the cpu's cache ports to Ruby
-        ruby_port.connectCpuPorts(system.cpu[i])
-else:
-    MemClass = Simulation.setMemClass(args)
-    system.membus = SystemXBar()
-    system.system_port = system.membus.cpu_side_ports
-    CacheConfig.config_cache(args, system)
-    MemConfig.config_mem(args, system)
-    config_filesystem(system, args)
+    # Connect the cpu's cache ports to Ruby
+    ruby_port.connectCpuPorts(system.cpu[i])
 
-system.workload = SEWorkload.init_compatible(mp0_path)
-
-if args.wait_gdb:
-    system.workload.wait_for_remote_gdb = True
+    system.workload = SEWorkload.init_compatible(mp0_path)
 
 root = Root(full_system=False, system=system)
 Simulation.run(args, root, system, None)

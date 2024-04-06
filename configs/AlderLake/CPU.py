@@ -18,6 +18,12 @@ class GoldenCove(X86O3CPU):
         self.numPhysCCRegs = self.numPhysIntRegs * 5
         self.branchPred = TAGE_SC_L_64KB()
 
+    def is_pcore(self) -> bool:
+        return True
+
+    def is_ecore(self) -> bool:
+        return False
+
 
 class Gracemont(X86O3CPU):
     def __init__(self, *args, **kwargs):
@@ -35,3 +41,9 @@ class Gracemont(X86O3CPU):
         self.numIQEntries = 15 + 16 + 16 + 15 + 42 + 22 + 18 + 35
         self.numPhysCCRegs = self.numPhysIntRegs * 5
         self.branchPred = TAGE_SC_L_64KB()
+
+    def is_pcore(self) -> bool:
+        return False
+
+    def is_ecore(self) -> bool:
+        return True
