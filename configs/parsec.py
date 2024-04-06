@@ -98,11 +98,19 @@ multiprocesses = [process]
 
 # CPUClass = X86O3CPU
 CPUClass = AlderLake.GoldenCove
+num_pcores = 8
+num_ecores = 8
+
+cpus = []
+for i in range(num_pcores):
+    cpus.append(AlderLake.GoldenCove(cpu_id=len(cpus)))
+for i in range(num_ecores):
+    cpus.append(AlderLake.Gracemont(cpu_id=len(cpus)))
 
 np = args.num_cpus
 mp0_path = multiprocesses[0].executable
 system = System(
-    cpu=[CPUClass(cpu_id=i) for i in range(np)],
+    cpu=cpus,
     mem_mode="timing",
     mem_ranges=[AddrRange(args.mem_size)],
     cache_line_size=args.cacheline_size,
@@ -137,33 +145,9 @@ if args.elastic_trace_en:
 for cpu in system.cpu:
     cpu.clk_domain = system.cpu_clk_domain
 
-# Sanity check
-if args.simpoint_profile:
-    if not ObjectList.is_noncaching_cpu(CPUClass):
-        fatal("SimPoint/BPProbe should be done with an atomic cpu")
-    if np > 1:
-        fatal("SimPoint generation not supported with more than one CPUs")
-
-for i in range(np):
-    system.cpu[i].workload = process
-
-    if args.simpoint_profile:
-        system.cpu[i].addSimPointProbe(args.simpoint_interval)
-
-    if args.checker:
-        system.cpu[i].addCheckerCpu()
-
-    if args.bp_type:
-        bpClass = ObjectList.bp_list.get(args.bp_type)
-        system.cpu[i].branchPred = bpClass()
-
-    if args.indirect_bp_type:
-        indirectBPClass = ObjectList.indirect_bp_list.get(
-            args.indirect_bp_type
-        )
-        system.cpu[i].branchPred.indirectBranchPred = indirectBPClass()
-
-    system.cpu[i].createThreads()
+for cpu in system.cpu:
+    cpu.workload = process
+    cpu.createThreads()
 
 if args.ruby:
     Ruby.create_system(args, False, system)
