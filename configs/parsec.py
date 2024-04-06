@@ -44,13 +44,13 @@ import argparse
 import sys
 import os
 
-#=== PARSEC OPTIONS ===#
+# === PARSEC OPTIONS ===#
 sys.argv += [
-    '--num-cpus=16',
-    '--ruby',
-    '--cpu-type=X86O3CPU',
+    "--num-cpus=16",
+    "--ruby",
+    "--cpu-type=X86O3CPU",
 ]
-#======================#
+# ======================#
 
 import m5
 from m5.defines import buildEnv
@@ -59,7 +59,7 @@ from m5.params import NULL
 from m5.util import addToPath, fatal, warn
 from gem5.isas import ISA
 from gem5.runtime import get_runtime_isa
-from ALKGoldenCove import AlderLake_GoldenCove
+import AlderLake
 
 addToPath("../../")
 
@@ -97,13 +97,13 @@ if args.errout:
 multiprocesses = [process]
 
 # CPUClass = X86O3CPU
-CPUClass = AlderLake_GoldenCove
+CPUClass = AlderLake.GoldenCove
 
 np = args.num_cpus
 mp0_path = multiprocesses[0].executable
 system = System(
     cpu=[CPUClass(cpu_id=i) for i in range(np)],
-    mem_mode='timing',
+    mem_mode="timing",
     mem_ranges=[AddrRange(args.mem_size)],
     cache_line_size=args.cacheline_size,
 )
