@@ -66,6 +66,7 @@ from common.FileSystemConfig import config_filesystem
 from common.Caches import *
 from CPU import Gracemont, GoldenCove
 
+
 def get_processes(args):
     """Interprets provided args and returns a list of processes"""
 
@@ -126,8 +127,8 @@ warn(
 parser = argparse.ArgumentParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
-parser.add_argument('--ecore', action = 'store_true')
-parser.add_argument('--pcore', action = 'store_true')
+parser.add_argument("--ecore", action="store_true")
+parser.add_argument("--pcore", action="store_true")
 
 if "--ruby" in sys.argv:
     Ruby.define_options(parser)
@@ -176,12 +177,12 @@ CPUClass.numThreads = numThreads
 assert FutureClass is None
 
 if issubclass(CPUClass, DerivO3CPU):
-    print('NOTE: Running in Alder Lake mode')
+    print("NOTE: Running in Alder Lake mode")
     if args.pcore:
-        print('NOTE: Using Alder Lake P-core')
+        print("NOTE: Using Alder Lake P-core")
         CPUClass = GoldenCove
     elif args.ecore:
-        print('NOTE: Using Alder Lake E-core')
+        print("NOTE: Using Alder Lake E-core")
         CPUClass = Gracemont
     else:
         fatal("--ecore or --pcore must be specified for Alder Lake")
@@ -244,7 +245,7 @@ if ObjectList.is_kvm_cpu(CPUClass) or ObjectList.is_kvm_cpu(FutureClass):
 
 for process in multiprocesses:
     process.maxStackSize = args.max_stack_size
-        
+
 # Sanity check
 if args.simpoint_profile:
     if not ObjectList.is_noncaching_cpu(CPUClass):
