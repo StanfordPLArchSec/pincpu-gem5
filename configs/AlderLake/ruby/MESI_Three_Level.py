@@ -80,9 +80,9 @@ def create_system(
     assert not full_system
     assert buildEnv["PROTOCOL"] == "MESI_Three_Level"
     assert options.cacheline_size == 64
-    assert options.enable_prefetch
+    if not options.enable_prefetch:
+        fatal("Alder Lake MESI Three Level requires prefetching be enabled with --enable-prefetch!")
     assert options.num_clusters == 1
-    assert options.num_cpus == 16
 
     cpu_sequencers = []
 
@@ -93,16 +93,19 @@ def create_system(
 
     assert options.num_cpus % options.num_clusters == 0
     num_cpus_per_cluster = options.num_cpus // options.num_clusters
-    assert num_cpus_per_cluster == 16
 
     assert options.num_l2caches % options.num_clusters == 0
     num_l2caches_per_cluster = options.num_l2caches // options.num_clusters
-    assert num_l2caches_per_cluster == 1
 
     l2_bits = int(math.log(num_l2caches_per_cluster, 2))
     block_size_bits = int(math.log(options.cacheline_size, 2))
     l2_index_start = block_size_bits + l2_bits
     assert l2_bits == 0
+
+    num_ecores = 0
+    for cpu in cpus:
+        if cpu.is_ecore():
+            num_ecores += 1
 
     for i, cpu in enumerate(cpus):
         if cpu.is_pcore():
@@ -117,7 +120,7 @@ def create_system(
             l0i_assoc = 8
             l0d_size = "32kB"
             l0d_assoc = 8
-            l1_size = "256kB"
+            l1_size = f"{2048 // num_ecores}kB"
             l1_assoc = 16
         else:
             assert False
