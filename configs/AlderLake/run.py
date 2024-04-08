@@ -49,6 +49,7 @@ sys.argv += [
     "--num-cpus=16",
     "--ruby",
     "--cpu-type=X86O3CPU",
+    "--enable-prefetch",
 ]
 # ======================#
 
