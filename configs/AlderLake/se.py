@@ -174,9 +174,10 @@ else:
 
 (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
 CPUClass.numThreads = numThreads
-assert FutureClass is None
 
-if issubclass(CPUClass, DerivO3CPU):
+def fixup_cpuclass(CPUClass):
+    if CPUClass is None or not issubclass(CPUClass, DerivO3CPU):
+        return CPUClass
     print("NOTE: Running in Alder Lake mode")
     if args.pcore:
         print("NOTE: Using Alder Lake P-core")
@@ -187,6 +188,10 @@ if issubclass(CPUClass, DerivO3CPU):
     else:
         fatal("--ecore or --pcore must be specified for Alder Lake")
     assert int(args.num_cpus) == 1
+    return CPUClass
+
+CPUClass = fixup_cpuclass(CPUClass)
+FutureClass = fixup_cpuclass(FutureClass)
 
 # Check -- do not allow SMT with multiple CPUs
 if args.smt and args.num_cpus > 1:
@@ -309,5 +314,6 @@ system.workload = SEWorkload.init_compatible(mp0_path)
 if args.wait_gdb:
     system.workload.wait_for_remote_gdb = True
 
+CpuConfig.config_scheme(CPUClass, system.cpu, args)
 root = Root(full_system=False, system=system)
 Simulation.run(args, root, system, FutureClass)

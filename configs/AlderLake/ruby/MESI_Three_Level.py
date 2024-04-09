@@ -104,11 +104,11 @@ def create_system(
 
     num_ecores = 0
     for cpu in cpus:
-        if cpu.is_ecore():
+        if issubclass(type(cpu), DerivO3CPU) and cpu.is_ecore():
             num_ecores += 1
 
     for i, cpu in enumerate(cpus):
-        if cpu.is_pcore():
+        if not issubclass(type(cpu), DerivO3CPU) or cpu.is_pcore():
             l0i_size = "32kB"
             l0i_assoc = 8
             l0d_size = "48kB"
