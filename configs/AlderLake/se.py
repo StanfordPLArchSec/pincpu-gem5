@@ -175,6 +175,7 @@ else:
 (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
 CPUClass.numThreads = numThreads
 
+
 def fixup_cpuclass(CPUClass):
     if CPUClass is None or not issubclass(CPUClass, DerivO3CPU):
         return CPUClass
@@ -189,6 +190,7 @@ def fixup_cpuclass(CPUClass):
         fatal("--ecore or --pcore must be specified for Alder Lake")
     assert int(args.num_cpus) == 1
     return CPUClass
+
 
 CPUClass = fixup_cpuclass(CPUClass)
 FutureClass = fixup_cpuclass(FutureClass)
@@ -221,9 +223,20 @@ system.clk_domain = SrcClockDomain(
 system.cpu_voltage_domain = VoltageDomain()
 
 # Create a separate clock domain for the CPUs
-system.cpu_clk_domain = SrcClockDomain(
-    clock=args.cpu_clock, voltage_domain=system.cpu_voltage_domain
-)
+for cpu in system.cpu:
+    clock = None
+    if not issubclass(type(cpu), DerivO3CPU):
+        clock = args.cpu_clock
+    elif cpu.is_pcore():
+        clock = "3.4GHz"
+    elif cpu.is_ecore():
+        clock = "2.5GHz"
+    else:
+        fatal("Encountered O3 CPU that is neither E-core nor P-core")
+    cpu.clk_domain = SrcClockDomain(
+        clock=clock,
+        voltage_domain=system.cpu_voltage_domain,
+    )
 
 # If elastic tracing is enabled, then configure the cpu and attach the elastic
 # trace probe
@@ -232,11 +245,6 @@ if args.elastic_trace_en:
 
 # for cpu in system.cpu:
 #     cpu.usePerf = True
-
-# All cpus belong to a common cpu_clk_domain, therefore running at a common
-# frequency.
-for cpu in system.cpu:
-    cpu.clk_domain = system.cpu_clk_domain
 
 if ObjectList.is_kvm_cpu(CPUClass) or ObjectList.is_kvm_cpu(FutureClass):
     if buildEnv["USE_X86_ISA"]:

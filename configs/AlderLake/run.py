@@ -168,6 +168,6 @@ for i in range(np):
 
     system.workload = SEWorkload.init_compatible(mp0_path)
 
-CpuConfig.config_scheme(CPUClass, system.cpu, args)
+CpuConfig.config_scheme(X86O3CPU, system.cpu, args)
 root = Root(full_system=False, system=system)
 Simulation.run(args, root, system, None)

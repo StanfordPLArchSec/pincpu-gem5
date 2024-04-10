@@ -122,6 +122,8 @@ CPU::CPU(const BaseO3CPUParams &params)
     fatal_if(FullSystem && params.numThreads > 1,
             "SMT is not supported in O3 in full system mode currently.");
 
+    DPRINTF(O3CPU, "num mat regs: %u\n", params.numPhysMatRegs);
+
     fatal_if(!FullSystem && params.numThreads < params.workload.size(),
             "More workload items (%d) than threads (%d) on CPU %s.",
             params.workload.size(), params.numThreads, name());

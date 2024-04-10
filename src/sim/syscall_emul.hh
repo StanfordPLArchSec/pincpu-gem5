@@ -82,7 +82,6 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
-#include <linux/kdev_t.h>
 
 #include <cerrno>
 #include <memory>
@@ -926,7 +925,7 @@ openatFunc(SyscallDesc *desc, ThreadContext *tc,
     std::vector<std::string> special_paths =
             { "/proc/meminfo", "/system/", "/platform/", "/etc/passwd",
               "/proc/self/maps", "/dev/urandom",
-              "/sys/devices/system/cpu/online", "/proc/loadavg" };
+              "/sys/devices/system/cpu/online" };
     for (auto entry : special_paths) {
         if (startswith(path, entry)) {
             sim_fd = OS::openSpecialFile(abs_path, p, tc);
@@ -1570,14 +1569,11 @@ template <class OS>
 SyscallReturn
 statxFunc(SyscallDesc *desc, ThreadContext *tc,
           int dirfd, VPtr<> pathname, int flags,
-          // unsigned int mask, VPtr<typename OS::tgt_statx> tgt_statx)
-	  unsigned int mask, Addr tgt_statx_raw)
+          unsigned int mask, VPtr<typename OS::tgt_statx> tgt_statx)
 {
     std::string path;
 
-    const auto proxy = SETranslatingPortProxy(tc);
-
-    if (!proxy.tryReadString(path, pathname))
+    if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
         return -EFAULT;
 
     if (path.empty() && !(flags & OS::TGT_AT_EMPTY_PATH))
@@ -1602,8 +1598,7 @@ statxFunc(SyscallDesc *desc, ThreadContext *tc,
     if (result < 0)
         return -errno;
 
-    if (!proxy.tryWriteBlob(tgt_statx_raw, &host_buf, sizeof host_buf))
-      return -EFAULT;
+    copyOutStatxBuf<OS>(tgt_statx, &host_buf);
 
     return 0;
 }
@@ -2292,20 +2287,6 @@ clock_getresFunc(SyscallDesc *desc, ThreadContext *tc, int clk_id,
     tp->tv_sec = 0;
     tp->tv_nsec = 1;
 
-    return 0;
-}
-
-/// Target clock_nanosleep() function.
-template <class OS>
-SyscallReturn
-clock_nanosleepFunc(SyscallDesc *desc, ThreadContext *tc, int clk_id,
-		    int flags, VPtr<typename OS::timespec> request,
-		    VPtr<typename OS::timespec> remain)
-{
-    if (remain) {
-        remain->tv_sec = 0;
-        remain->tv_nsec = 0;
-    }
     return 0;
 }
 
