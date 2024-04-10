@@ -651,6 +651,11 @@ RubySystem::simpleFunctionalRead(PacketPtr pkt)
         }
     }
 
+    if (num_ro == 0 && num_rw == 0 && num_busy > 0 && num_maybe_stale == 0 && num_backing_store == 0 && num_invalid == 0) {
+        warn("Suppressing failed functional read with num_busy > 0\n");
+        return true;
+    }
+
     return false;
 }
 

@@ -86,20 +86,3 @@ def config_scheme(cpu_cls, cpu_list, options):
 
     if not issubclass(cpu_cls, m5.objects.DerivO3CPU):
         return
-
-    for cpu in cpu_list:
-        if cpu.umodel == "alk-p":
-            cpu.numROBEntries = 512
-            cpu.fetchWidth = 6
-            cpu.decodeWidth = 6
-            cpu.renameWidth = 6
-            cpu.LQEntries = 192
-            cpu.SQEntries = 114
-            cpu.numPhysIntRegs = 280
-            cpu.numPhysFloatRegs = 332
-            cpu.numIQEntries = 2 * 72
-        elif cpu.umodel == "none":
-            pass
-        else:
-            print(f"unrecognized umodel: {cpu.umodel}", file=sys.stderr)
-            exit(1)

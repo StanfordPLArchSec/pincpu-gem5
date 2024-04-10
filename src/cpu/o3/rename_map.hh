@@ -285,6 +285,12 @@ class UnifiedRenameMap
         return renameMaps[type].numFreeEntries();
     }
 
+    unsigned
+    numArchRegs(RegClassType type) const
+    {
+        return renameMaps[type].numArchRegs();
+    }
+
     /**
      * Return whether there are enough registers to serve the request.
      */
