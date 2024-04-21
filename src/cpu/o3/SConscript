@@ -38,6 +38,7 @@ if env['CONF']['BUILD_ISA']:
         enums=['SMTFetchPolicy', 'SMTQueuePolicy', 'CommitPolicy',
                'SpeculationModel'])
 
+    Source('comm.cc')
     Source('commit.cc')
     Source('cpu.cc')
     Source('decode.cc')

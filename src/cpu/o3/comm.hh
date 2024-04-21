@@ -66,6 +66,9 @@ struct FetchStruct
     Fault fetchFault;
     InstSeqNum fetchFaultSN;
     bool clearFetchFault;
+
+    /** Remove any thread-specific state. */
+    void clearStates(ThreadID tid);
 };
 
 /** Struct that defines the information passed from decode to rename. */
@@ -74,6 +77,9 @@ struct DecodeStruct
     int size;
 
     DynInstPtr insts[MaxWidth];
+
+    /** Remove any thread-specific state. */
+    void clearStates(ThreadID tid);
 };
 
 /** Struct that defines the information passed from rename to IEW. */
@@ -82,6 +88,9 @@ struct RenameStruct
     int size;
 
     DynInstPtr insts[MaxWidth];
+
+    /** Remove any thread-specific state. */
+    void clearStates(ThreadID tid);
 };
 
 /** Struct that defines the information passed from IEW to commit. */
@@ -100,6 +109,9 @@ struct IEWStruct
     bool branchMispredict[MaxThreads];
     bool branchTaken[MaxThreads];
     bool includeSquashInst[MaxThreads];
+
+    /** Remove any thread-specific state. */
+    void clearStates(ThreadID tid);
 };
 
 struct IssueStruct
@@ -224,6 +236,9 @@ struct TimeStruct
     bool renameUnblock[MaxThreads];
     bool iewBlock[MaxThreads];
     bool iewUnblock[MaxThreads];
+
+    /** Remove any thread-specific state. */
+    void clearStates(ThreadID tid);
 };
 
 /**
