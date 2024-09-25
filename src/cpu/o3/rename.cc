@@ -1300,8 +1300,6 @@ Rename::readFreeEntries(ThreadID tid)
             renameMap[tid]->numFreeEntries(MatRegClass),
             renameMap[tid]->numFreeEntries(CCRegClass));
 
-    DPRINTF(Rename, "[tid:%i] total matrix regs: %u\n", tid, renameMap[tid]->numArchRegs(MatRegClass));
-
     DPRINTF(Rename, "[tid:%i] %i instructions not yet in ROB\n",
             tid, instsInProgress[tid]);
 }
