@@ -79,10 +79,4 @@ def config_etrace(cpu_cls, cpu_list, options):
 
 # LLSCT-HWX
 def config_scheme(cpu_cls, cpu_list, options):
-    if issubclass(cpu_cls, m5.objects.BaseKvmCPU):
-        for cpu in cpu_list:
-            cpu.useXSave = bool(options.kvm_use_xsave)
-        return
-
-    if not issubclass(cpu_cls, m5.objects.DerivO3CPU):
-        return
+    pass
