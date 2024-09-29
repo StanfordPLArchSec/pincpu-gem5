@@ -1595,5 +1595,25 @@ InstructionQueue::dumpInsts()
     }
 }
 
+void
+InstructionQueue::wakeDelayedIssueInsts()
+{
+    for (ThreadID tid : *activeThreads) {
+        std::list<DynInstPtr>& queue = delayedIssueQueue[tid];
+        for (auto it = queue.begin(); it != queue.end(); ) {
+            const DynInstPtr& inst = *it;
+            assert(inst->readyToIssue());
+            if (inst->isSquashed()) {
+                it = queue.erase(it);
+            } else if (inst->isUnsquashable()) {
+                addIfReady(inst);
+                it = queue.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+}
+
 } // namespace o3
 } // namespace gem5

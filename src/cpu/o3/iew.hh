@@ -292,6 +292,9 @@ class IEW
      */
     void tick();
 
+    /** [TPE, STT, SPT] Wake delayed-issue instructions. */
+    void wakeDelayedIssueInsts();
+
   private:
     /** Updates execution stats based on the instruction. */
     void updateExeInstStats(const DynInstPtr &inst);

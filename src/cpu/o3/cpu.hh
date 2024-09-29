@@ -67,6 +67,7 @@
 #include "cpu/base.hh"
 #include "cpu/simple_thread.hh"
 #include "cpu/timebuf.hh"
+#include "enums/SpeculationModel.hh"
 #include "params/BaseO3CPU.hh"
 #include "sim/process.hh"
 
@@ -592,6 +593,9 @@ class CPU : public BaseCPU
     // hardware transactional memory
     void htmSendAbortSignal(ThreadID tid, uint64_t htm_uid,
                             HtmFailureFaultCause cause) override;
+
+    /** [TPE, STT, SPT] Speculation model. */
+    SpeculationModel speculationModel;
 };
 
 } // namespace o3

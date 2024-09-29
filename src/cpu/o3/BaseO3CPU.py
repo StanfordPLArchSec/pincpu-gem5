@@ -60,6 +60,8 @@ class SMTQueuePolicy(ScopedEnum):
 class CommitPolicy(ScopedEnum):
     vals = ["RoundRobin", "OldestReady"]
 
+class SpeculationModel(ScopedEnum):
+    vals = ["None", "Ctrl", "CtrlSt", "Futuristic", "AtRet"]
 
 class BaseO3CPU(BaseCPU):
     type = "BaseO3CPU"
@@ -216,4 +218,7 @@ class BaseO3CPU(BaseCPU):
     )
     recvRespBufferSize = Param.Unsigned(
         64, "Maximum number of receive response bytes per cycle"
+    )
+    speculationModel = Param.SpeculationModel(
+        "Futuristic", "[TPE, STT, SPT] Speculation model"
     )

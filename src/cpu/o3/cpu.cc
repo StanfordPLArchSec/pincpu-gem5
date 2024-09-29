@@ -320,6 +320,9 @@ CPU::CPU(const BaseO3CPUParams &params)
         fatal("O3CPU %s has no interrupt controller.\n"
               "Ensure createInterruptController() is called.\n", name());
     }
+
+    // [TPE, STT, SPT] Set speculation model.
+    speculationModel = params.speculationModel;
 }
 
 void

@@ -1453,6 +1453,9 @@ IEW::tick()
 
         writebackInsts();
 
+        // [TPE, STT, SPT]
+        wakeDelayedIssueInsts();
+
         // Have the instruction queue try to schedule any ready instructions.
         // (In actuality, this scheduling is for instructions that will
         // be executed next cycle.)
@@ -1610,6 +1613,12 @@ IEW::checkMisprediction(const DynInstPtr& inst)
             }
         }
     }
+}
+
+void
+IEW::wakeDelayedIssueInsts()
+{
+    instQueue.wakeDelayedIssueInsts();
 }
 
 } // namespace o3

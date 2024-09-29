@@ -455,5 +455,50 @@ DynInst::initiateMemAMO(Addr addr, unsigned size, Request::Flags flags,
             std::move(amo_op), std::vector<bool>(size, true));
 }
 
+bool
+DynInst::isSpeculationPrimitive() const
+{
+    panic_if(isSquashed(), "Don't call isSpeculationPrimitve() on squashed instructions!\n");
+
+    switch (cpu->speculationModel) {
+      case SpeculationModel::None:
+        return false;
+
+      case SpeculationModel::Ctrl:
+        // TPE-TODO: Double-check this with STT/SPT?
+        return (isCondCtrl() || isIndirectCtrl()) && (!isExecuted() || mispredicted());
+
+      case SpeculationModel::CtrlSt:
+        // TPE-TODO: Double-check this with ReCon?
+        if (isCondCtrl() || isIndirectCtrl()) {
+            return !isExecuted() || mispredicted();
+        } else if (isStore()) {
+            return effAddrValid();
+        } else {
+            return false;
+        }
+
+      case SpeculationModel::Futuristic:
+        // TPE-TODO: Double-check this with STT/SPT?
+        return
+            isNonSpeculative() ||
+            isStoreConditional() ||
+            isReadBarrier() ||
+            isWriteBarrier() ||
+            (isLoad() && strictlyOrdered()) ||
+            !readyToCommit() ||
+            getFault() != NoFault;
+
+      case SpeculationModel::AtRet:
+        // Under the AtRet speculation model, all instructions are considered
+        // speculation primitives. Thus, all instructions except for the head of
+        // the ROB are considered speculative.
+        return true;
+        
+      default:
+        panic("unreachable!\n");
+    }
+}
+
 } // namespace o3
 } // namespace gem5
