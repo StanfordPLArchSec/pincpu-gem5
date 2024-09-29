@@ -1342,6 +1342,9 @@ Commit::markCompletedInsts()
             fromIEW->insts[inst_num]->setCanCommit();
         }
     }
+
+    // [TPE, STT, SPT] Recompute which instructions are nonspeculative.
+    rob->updateVisibleState();
 }
 
 void

@@ -57,6 +57,8 @@ class SMTQueuePolicy(ScopedEnum):
 class CommitPolicy(ScopedEnum):
     vals = ["RoundRobin", "OldestReady"]
 
+class SpeculationModel(ScopedEnum):
+    vals = ["None", "Ctrl", "CtrlSt", "Futuristic", "AtRet"]
 
 class BaseO3CPU(BaseCPU):
     type = "BaseO3CPU"
@@ -191,3 +193,6 @@ class BaseO3CPU(BaseCPU):
         TournamentBP(numThreads=Parent.numThreads), "Branch Predictor"
     )
     needsTSO = Param.Bool(False, "Enable TSO Memory model")
+    speculationModel = Param.SpeculationModel(
+        "Futuristic", "[TPE, STT, SPT] Speculation model"
+    )

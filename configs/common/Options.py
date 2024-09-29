@@ -691,6 +691,14 @@ def addCommonOptions(parser, default_isa: Optional[ISA] = None):
         help="Override vendor string returned by CPUID instruction in X86.",
     )
 
+    # [TPE, STT, SPT] Options
+    parser.add_argument(
+        "--speculation-model",
+        default="Futuristic",
+        choices=["None", "Ctrl", "CtrlSt", "Futuristic", "AtRet"],
+        help="[TPE, STT, SPT] Speculation model",
+    )
+
 
 def addSEOptions(parser):
     # Benchmark options

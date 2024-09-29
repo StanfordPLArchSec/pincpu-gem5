@@ -541,5 +541,28 @@ ROB::findInst(ThreadID tid, InstSeqNum squash_inst)
     return NULL;
 }
 
+void
+ROB::updateVisibleState()
+{
+    for (ThreadID tid : *activeThreads) {
+        for (DynInstPtr& inst : instList[tid]) {
+            // This is to prevent declaring instruction as unsquashable while
+            // we're squashing.
+            if (!isDoneSquashing(tid) && inst->seqNum > squashedSeqNum[tid])
+                break;
+
+            // Also skip if the instruction is squashed.
+            if (inst->isSquashed())
+                break;
+
+            // TPE-TODO: Rename.
+            inst->setUnsquashable();
+
+            if (inst->isSpeculationPrimitive())
+                break;
+        }
+    }
+}
+
 } // namespace o3
 } // namespace gem5

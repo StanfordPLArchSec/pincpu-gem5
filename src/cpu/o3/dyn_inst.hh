@@ -168,6 +168,7 @@ class DynInst : public ExecContext, public RefCounted
                                  /// instructions ahead of it
         SerializeAfter,          /// Needs to serialize instructions behind it
         SerializeHandled,        /// Serialization has been handled
+        Unsquashable,            /// [TPE, STT, SPT] Instruction is nonspeculative.
         NumStatus
     };
 
@@ -528,7 +529,7 @@ class DynInst : public ExecContext, public RefCounted
 
     /** Returns whether the instruction mispredicted. */
     bool
-    mispredicted()
+    mispredicted() const
     {
         std::unique_ptr<PCStateBase> next_pc(pc->clone());
         staticInst->advancePC(*next_pc);
@@ -1168,6 +1169,15 @@ class DynInst : public ExecContext, public RefCounted
         cpu->setReg(reg, val, threadNumber);
         setResult(reg->regClass(), val);
     }
+
+    /** [TPE, STT, SPT] Is this instruction nonspeculative? */
+    bool isUnsquashable() const { return instFlags[Unsquashable]; }
+
+    /** [TPE, STT, SPT] Mark this instruction as nonspeculative. */
+    void setUnsquashable() { instFlags[Unsquashable] = true; }
+
+    /** [TPE, STT, SPT] Is this instruction a speculation primitive? */
+    bool isSpeculationPrimitive() const;
 };
 
 } // namespace o3

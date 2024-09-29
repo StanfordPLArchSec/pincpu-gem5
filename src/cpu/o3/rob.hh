@@ -212,6 +212,11 @@ class ROB
     /** Updates the tail instruction with the new youngest instruction. */
     void updateTail();
 
+    /** [TPE, STT, SPT]
+     * Compute which instructions are speculative vs. nonspeculative.
+     */
+    void updateVisibleState();
+
     /** Reads the PC of the oldest head instruction. */
 //    uint64_t readHeadPC();
 

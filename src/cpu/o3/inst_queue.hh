@@ -320,6 +320,9 @@ class InstructionQueue
     /** List of all the instructions in the IQ (some of which may be issued). */
     std::list<DynInstPtr> instList[MaxThreads];
 
+    /** [TPE, STT, SPT] Queue of delayed-issue instructions. */
+    std::list<DynInstPtr> delayedIssueQueue[MaxThreads];
+
     /** List of instructions that are ready to be executed. */
     std::list<DynInstPtr> instsToExecute;
 
@@ -561,6 +564,8 @@ class InstructionQueue
         statistics::Scalar fpAluAccesses;
         statistics::Scalar vecAluAccesses;
     } iqIOStats;
+
+    void wakeDelayedIssueInsts();    
 };
 
 } // namespace o3

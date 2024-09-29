@@ -77,6 +77,8 @@ def config_etrace(cpu_cls, cpu_list, options):
         )
 
 
-# LLSCT-HWX
+# [TPE, STT, SPT] Common O3 CPU parameters.
 def config_scheme(cpu_cls, cpu_list, options):
-    pass
+    if issubclass(cpu_cls, m5.objects.DerivO3CPU):
+        for cpu in cpu_list:
+            cpu.speculationModel = options.speculation_model

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+usage() {
+    cat <<EOF
+usage: $0 [<target>=build/X86/gem5.opt]
+EOF
+}
+
+target=
+case $# in
+    0)
+	target=build/X86/gem5.opt
+	;;
+    1)
+	target="$1"
+	;;
+    *)
+	usage >&2
+	exit 1
+	;;
+esac
+
+scons "$target" -j`nproc` --ignore-style --linker=lld
