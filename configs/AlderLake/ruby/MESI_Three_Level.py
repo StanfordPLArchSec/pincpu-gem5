@@ -28,12 +28,19 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import math
-import m5
-from m5.objects import *
-from m5.defines import buildEnv
-from .Ruby import create_topology, create_directories
-from .Ruby import send_evicts
+
 from common import FileSystemConfig
+
+import m5
+from m5.defines import buildEnv
+from m5.objects import *
+
+from .Ruby import (
+    create_directories,
+    create_topology,
+    send_evicts,
+)
+
 
 #
 # Declare caches used by the protocol
@@ -81,7 +88,9 @@ def create_system(
     assert buildEnv["PROTOCOL"] == "MESI_Three_Level"
     assert options.cacheline_size == 64
     if not options.enable_prefetch:
-        fatal("Alder Lake MESI Three Level requires prefetching be enabled with --enable-prefetch!")
+        fatal(
+            "Alder Lake MESI Three Level requires prefetching be enabled with --enable-prefetch!"
+        )
     assert options.num_clusters == 1
 
     cpu_sequencers = []
@@ -200,7 +209,7 @@ def create_system(
         l0_cntrl.mandatoryQueue = MessageBuffer()
         l0_cntrl.bufferToL1 = MessageBuffer(ordered=True)
         l1_cntrl.bufferFromL0 = l0_cntrl.bufferToL1
-        l0_cntrl.bufferFromL1 = MessageBuffer(ordered=True)
+        l0_cntrl.bufferFromL1 = MessageBuffer(ordered=False)
         l1_cntrl.bufferToL0 = l0_cntrl.bufferFromL1
 
         # Connect the L1 controllers and the network
