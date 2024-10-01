@@ -37,21 +37,21 @@ microcode = """
 def macroop CMP_R_M
 {
     ld t1, seg, sib, disp
-    sub t0, reg, t1, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, reg, t1, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 
 def macroop CMP_R_P
 {
     rdip t7
     ld t1, seg, riprel, disp
-    sub t0, reg, t1, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, reg, t1, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 
 def macroop CMP_M_I
 {
     limm t2, imm
     ld t1, seg, sib, disp
-    sub t0, t1, t2, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, t1, t2, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 
 def macroop CMP_P_I
@@ -59,30 +59,30 @@ def macroop CMP_P_I
     limm t2, imm
     rdip t7
     ld t1, seg, riprel, disp
-    sub t0, t1, t2, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, t1, t2, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 
 def macroop CMP_M_R
 {
     ld t1, seg, sib, disp
-    sub t0, t1, reg, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, t1, reg, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 
 def macroop CMP_P_R
 {
     rdip t7
     ld t1, seg, riprel, disp
-    sub t0, t1, reg, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, t1, reg, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 
 def macroop CMP_R_R
 {
-    sub t0, reg, regm, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, reg, regm, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 
 def macroop CMP_R_I
 {
     limm t1, imm
-    sub t0, reg, t1, flags=(OF, SF, ZF, AF, PF, CF)
+    sub t0, reg, t1, flags=(OF, SF, ZF, AF, PF, CF, EZF, ECF)
 };
 """
