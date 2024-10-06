@@ -144,7 +144,6 @@ def macroop BSR_R_P {
 
     # Determine if the input was zero, and also move it to a temp reg.
     and t1, t1, t1, flags=(ZF,)
-    br label("end"), flags=(CZF,)
 
     # Zero out the result register
     movi reg, reg, 0x0
@@ -192,7 +191,6 @@ def macroop BSF_R_R {
     # Determine if the input was zero, and also move it to a temp reg.
     mov t1, t1, t0, dataSize=8
     and t1, regm, regm, flags=(ZF,)
-    br label("end"), flags=(CZF,)
 
     # Zero out the result register
     movi reg, reg, 0
@@ -247,7 +245,6 @@ def macroop BSF_R_M {
 
     # Determine if the input was zero, and also move it to a temp reg.
     and t1, t1, t1, flags=(ZF,)
-    br label("end"), flags=(CZF,)
 
     # Zero out the result register
     mov reg, reg, t0
@@ -303,7 +300,6 @@ def macroop BSF_R_P {
 
     # Determine if the input was zero, and also move it to a temp reg.
     and t1, t1, t1, flags=(ZF,)
-    br label("end"), flags=(CZF,)
 
     # Zero out the result register
     mov reg, reg, t0
