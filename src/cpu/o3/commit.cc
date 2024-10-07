@@ -1491,7 +1491,7 @@ Commit::getInsts()
     int insts_to_process = std::min((int)renameWidth, fromRename->size);
 
     for (int inst_num = 0; inst_num < insts_to_process; ++inst_num) {
-        const DynInstPtr &inst = fromRename->insts[inst_num];
+        DynInstPtr inst = fromRename->insts[inst_num];
         ThreadID tid = inst->threadNumber;
 
         if (!inst->isSquashed() &&
