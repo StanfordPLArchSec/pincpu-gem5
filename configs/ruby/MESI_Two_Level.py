@@ -108,7 +108,7 @@ def create_system(
             ruby_system=ruby_system,
             clk_domain=clk_domain,
             transitions_per_cycle=options.ports,
-            enable_prefetch=False,
+            enable_prefetch=options.enable_prefetch,
         )
 
         cpu_seq = RubySequencer(

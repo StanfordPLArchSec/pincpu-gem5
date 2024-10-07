@@ -169,6 +169,7 @@ class DynInst : public ExecContext, public RefCounted
         SerializeAfter,          /// Needs to serialize instructions behind it
         SerializeHandled,        /// Serialization has been handled
         Unsquashable,            /// [TPE, STT, SPT] Instruction is nonspeculative.
+        InStallList,    // [STT] instruction is ready to issue(regsReady) but argsTainted
         NumStatus
     };
 
@@ -190,6 +191,15 @@ class DynInst : public ExecContext, public RefCounted
         HtmFromTransaction,
         NoCapableFU,           /// Processor does not have capability to
                                /// execute the instruction
+        ReadyToExpose,
+        // [Jiyong,STT] The following are STT flags
+        IsUnsquashable,     // a instr is not squashable. In InvisiSpec it's equal to readyToExpose. In STT it's not since access instr is always readyToExpose and readyToExpose == !isArgsTainted
+        IsDestTainted,
+        IsArgsTainted,
+        IsAddrTainted,
+        HasExplicitFlow,
+        HasImplicitFlow,
+        HasPendingSquash,   // for branch/load, if a squash is postponed due to the tainted dependent operands
         MaxFlags
     };
 
@@ -357,6 +367,15 @@ class DynInst : public ExecContext, public RefCounted
     ssize_t sqIdx = -1;
     typename LSQUnit::SQIterator sqIt;
 
+    /*** [Jiyong,STT] ***/
+    /** Pointer to the data forwarded from store **/
+    uint8_t *stFwdData = nullptr;
+    int      stFwdDataSize = 0;
+
+    /** If load-store forwarding happens but need extra dummy load **/
+    bool alreadyForwarded;
+
+
 
     /////////////////////// TLB Miss //////////////////////
     /**
@@ -369,6 +388,11 @@ class DynInst : public ExecContext, public RefCounted
     // Need a copy of main request pointer to verify on writes.
     RequestPtr reqToVerify;
 
+  protected:
+    /*** [STT] the producer of arguments(-1 for none) ***/
+    std::array<DynInstPtr, 8> argProducers;
+
+
   public:
     /** Records changes to result? */
     void recordResult(bool f) { instFlags[RecordResult] = f; }
@@ -380,6 +404,28 @@ class DynInst : public ExecContext, public RefCounted
     /** Whether or not the memory operation is done. */
     bool memOpDone() const { return instFlags[MemOpDone]; }
     void memOpDone(bool f) { instFlags[MemOpDone] = f; }
+
+    bool fenceDelay() const { return instFlags[ReadyToExpose]; }
+    void fenceDelay(bool f) { instFlags[ReadyToExpose] = f; }
+
+    /*** [Jiyong,STT] STT Flags setter and accessor ***/
+    bool isDestTainted() const { return instFlags[IsDestTainted]; }
+    void isDestTainted(bool f) { instFlags[IsDestTainted] = f; }
+
+    bool isArgsTainted() const { return instFlags[IsArgsTainted]; }
+    void isArgsTainted(bool f) { instFlags[IsArgsTainted] = f; }
+
+    bool isAddrTainted() const { return instFlags[IsAddrTainted]; }
+    void isAddrTainted(bool f) { instFlags[IsAddrTainted] = f; }
+
+    bool hasExplicitFlow() const { return instFlags[HasExplicitFlow]; }
+    void hasExplicitFlow(bool f) { instFlags[HasExplicitFlow] = f; }
+
+    bool hasImplicitFlow() const { return instFlags[HasImplicitFlow]; }
+    void hasImplicitFlow(bool f) { instFlags[HasImplicitFlow] = f; }
+
+    bool hasPendingSquash() const { return instFlags[HasPendingSquash]; }
+    void hasPendingSquash(bool f) { instFlags[HasPendingSquash] = f; }
 
     bool notAnInst() const { return instFlags[NotAnInst]; }
     void setNotAnInst() { instFlags[NotAnInst] = true; }
@@ -569,6 +615,10 @@ class DynInst : public ExecContext, public RefCounted
     {
         return staticInst->isSerializeAfter() || status[SerializeAfter];
     }
+
+    // [Jiyong,STT] The following are STT status
+    bool isAccess() const { return staticInst->isLoad(); }                /// Instruction is an access instruction(root of taint)
+
     bool isSquashAfter() const { return staticInst->isSquashAfter(); }
     bool isFullMemBarrier()   const { return staticInst->isFullMemBarrier(); }
     bool isReadBarrier() const { return staticInst->isReadBarrier(); }
@@ -748,8 +798,17 @@ class DynInst : public ExecContext, public RefCounted
     /** Returns whether or not this instruction is ready to issue. */
     bool readyToIssue() const { return status[CanIssue]; }
 
+    /** [STT] */
+    bool readyToIssue_UT() const;
+
     /** Clears this instruction being able to issue. */
     void clearCanIssue() { status.reset(CanIssue); }
+
+    void addToStallList() { status.set(InStallList); }
+
+    void removeFromStallList() { status.reset(InStallList); }
+
+    bool isInStallList() const { return status[InStallList]; }    
 
     /** Sets this instruction as issued from the IQ. */
     void setIssued() { status.set(Issued); }
@@ -773,7 +832,12 @@ class DynInst : public ExecContext, public RefCounted
     void clearCanCommit() { status.reset(CanCommit); }
 
     /** Returns whether or not this instruction is ready to commit. */
-    bool readyToCommit() const { return status[CanCommit]; }
+    bool readyToCommit() const {
+        return  status[CanCommit] &&
+                (!instFlags[HasPendingSquash] ||
+                 (instFlags[HasPendingSquash] && status[Squashed])
+                ); }
+    bool checkCanCommit() const { return status[CanCommit]; }
 
     void setAtCommit() { status.set(AtCommit); }
 
@@ -988,6 +1052,21 @@ class DynInst : public ExecContext, public RefCounted
     getAddrMonitor() override
     {
         return cpu->getCpuAddrMonitor(threadNumber);
+    }
+
+    /*** [Jiyong,STT] functions related to argProducer ***/
+    DynInstPtr getArgProducer(int idx)
+    {
+        return argProducers[idx];
+    }
+
+    void clearArgProducer(int idx){
+        argProducers[idx] = nullptr;
+    }
+
+    void setArgProducer(int idx, DynInstPtr &inst)
+    {
+        argProducers[idx] = inst;
     }
 
   private:

@@ -47,6 +47,45 @@ isa_string_map = {
     ISA.MIPS: "Mips",
 }
 
+# [SafeSpec] add knob to configure the CPU modes/simulation schemes
+def config_scheme(cpu_cls, cpu_list, options):
+    if issubclass(cpu_cls, m5.objects.DerivO3CPU):
+        # Assign the same file name to all cpus for now.
+        if options.threat_model==None:
+            fatal("Need to provide threat_model "
+                "to run simulation with DerivO3CPU")
+
+        print("**********")
+        print("info: Configure for DerivO3CPU. threat_model=%s; STT=%s; implicit_channel=%s; moreTransmitInsts=%s, printROB=%s"\
+            % (options.threat_model, options.STT, options.implicit_channel, options.moreTransmitInsts, options.ifPrintROB))
+        print("**********")
+        for cpu in cpu_list:
+            if len(options.threat_model) != 0:
+                cpu.threatModel = options.threat_model
+
+            if options.STT:
+                cpu.STT = True;
+            else:
+                cpu.STT = False;
+
+            if options.implicit_channel:
+                cpu.implicitChannel = True;
+            else:
+                cpu.implicitChannel = False;
+
+            if options.ifPrintROB:
+                cpu.ifPrintROB = True;
+            else:
+                cpu.ifPrintROB = False;
+
+            if options.moreTransmitInsts:
+                cpu.moreTransmitInsts = options.moreTransmitInsts
+            else:
+                cpu.moreTransmitInsts = 0
+    else:
+        print("not DerivO3CPU")
+
+
 
 def config_etrace(cpu_cls, cpu_list, options):
     if issubclass(cpu_cls, m5.objects.DerivO3CPU):

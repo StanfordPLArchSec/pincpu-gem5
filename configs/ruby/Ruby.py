@@ -125,6 +125,8 @@ def define_options(parser):
         help="Recycle latency for ruby controller input buffers",
     )
 
+    parser.add_argument("--enable-prefetch", action="store_true", default=False,
+                      help="Enable Ruby HW Prefetcher")
     protocol = buildEnv["PROTOCOL"]
     exec(f"from . import {protocol}")
     eval(f"{protocol}.define_options(parser)")

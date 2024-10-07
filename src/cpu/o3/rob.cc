@@ -206,6 +206,21 @@ ROB::insertInst(const DynInstPtr &inst)
 
     ThreadID tid = inst->threadNumber;
 
+    /*** [Jiyong,STT] add logic for setting argProducers ***/
+    for (auto prevInstIt = instList[tid].begin(); prevInstIt != instList[tid].end(); prevInstIt++){
+        // find matched physical reg between prev instr and inst
+        DynInstPtr prevInst = (*prevInstIt);
+        for (int i = 0; i < inst->numSrcRegs(); i++) {
+            if (inst->srcRegIdx(i).index() == 16)   // exclude zero register (zero register cannot be tainted)
+                continue;
+            for (int j = 0; j < prevInst->numDestRegs(); j++){
+                if (inst->renamedSrcIdx(i) == prevInst->renamedDestIdx(j)){
+                    inst->setArgProducer(i, prevInst);
+                }
+            }
+        }
+    }
+
     instList[tid].push_back(inst);
 
     //Set Up head iterator if this is the 1st instruction in the ROB
@@ -254,6 +269,20 @@ ROB::retireHead(ThreadID tid)
 
     head_inst->clearInROB();
     head_inst->setCommitted();
+
+    /*** [Jiyong,STT] add logic for clearing argProducers ***/
+    for (auto nextInstIt = std::next(instList[tid].begin()); nextInstIt != instList[tid].end(); nextInstIt++){
+        // find matched physical reg between head_inst and next instr
+        DynInstPtr nextInst = (*nextInstIt);
+        for (int i = 0; i < nextInst->numSrcRegs(); i++){
+            if (nextInst->getArgProducer(i) == head_inst)
+                nextInst->clearArgProducer(i);
+        }
+    }
+
+    // clear argProducer for head_inst
+    for (int i = 0; i < head_inst->numSrcRegs(); i++)
+        head_inst->clearArgProducer(i);
 
     //Update "Global" Head of ROB
     updateHead();
@@ -350,6 +379,8 @@ ROB::doSquash(ThreadID tid)
         // Mark the instruction as squashed, and ready to commit so that
         // it can drain out of the pipeline.
         (*squashIt[tid])->setSquashed();
+
+        (*squashIt[tid])->hasPendingSquash(false);
 
         (*squashIt[tid])->setCanCommit();
 
@@ -562,6 +593,130 @@ ROB::updateVisibleState()
                 break;
         }
     }
+}
+
+/*
+ * [Jiyong, STT] routines for STT
+ */
+void
+ROB::explicit_flow(ThreadID tid, InstIt instIt)
+{
+    DynInstPtr inst = (*instIt);
+    for (int i = 0; i < inst->numSrcRegs(); i++){
+        if (inst->getArgProducer(i)) {
+            DynInstPtr argProducer = inst->getArgProducer(i);
+            assert(argProducer->threadNumber == tid);
+            if (argProducer->isDestTainted()
+                && !argProducer->isCommitted()) {
+                inst->hasExplicitFlow(true);
+                return;
+            }
+        }
+    }
+    inst->hasExplicitFlow(false);
+    return;
+}
+
+void
+ROB::address_flow(ThreadID tid, InstIt instIt)
+{
+    DynInstPtr inst = (*instIt);
+    if (inst->isMemRef()) {
+        if (inst->isStore()) {
+            for (int i = 1; i < inst->numSrcRegs(); i++){
+                if (inst->getArgProducer(i)) {
+                    DynInstPtr argProducer = inst->getArgProducer(i);
+                    assert(argProducer->threadNumber == tid);
+                    if (argProducer->isDestTainted()
+                        && !argProducer->isCommitted()) {
+                        inst->isAddrTainted(true);
+                        return;
+                    }
+                }
+            }
+        }
+        else if (inst->isLoad()) {
+            for (int i = 0; i < inst->numSrcRegs(); i++){
+                if (inst->getArgProducer(i)) {
+                    DynInstPtr argProducer = inst->getArgProducer(i);
+                    assert(argProducer->threadNumber == tid);
+                    if (argProducer->isDestTainted()
+                        && !argProducer->isCommitted()) {
+                        inst->isAddrTainted(true);
+                        return;
+                    }
+                }
+            }
+        }
+        else {
+            panic("Unidentified instruction.\n");
+        }
+
+        inst->isAddrTainted(false);
+    } else {
+        inst->isAddrTainted(false);
+    }
+}
+
+void
+ROB::implicit_flow(ThreadID tid, InstIt instIt)
+{
+    DynInstPtr inst = (*instIt);
+    if (cpu->impChannel) {
+        for (auto prevInstIt = instList[tid].begin(); prevInstIt != instIt; prevInstIt++) {
+            DynInstPtr prevInst = (*prevInstIt);
+            if (prevInst->isControl() && prevInst->hasExplicitFlow()) {
+                inst->hasImplicitFlow(true);
+                return;
+            }
+        }
+    }
+    inst->hasImplicitFlow(false);
+    return;
+}
+
+void
+ROB::compute_taint()
+{
+    assert(cpu->stt);
+
+    std::list<ThreadID>::iterator threads = activeThreads->begin();
+    std::list<ThreadID>::iterator end = activeThreads->end();
+
+    while (threads != end) {
+        ThreadID tid = *threads++;
+        if (instList[tid].empty())
+            continue;
+
+        for (auto instIt = instList[tid].begin(); instIt != instList[tid].end(); instIt++) {
+            explicit_flow(tid, instIt);
+            implicit_flow(tid, instIt);
+            address_flow(tid, instIt);
+            DynInstPtr inst = (*instIt);
+
+            inst->isArgsTainted(inst->hasExplicitFlow());
+
+            inst->isDestTainted(inst->isArgsTainted());
+            if (inst->isAccess() && !inst->isUnsquashable()) {
+                inst->isDestTainted(true);
+            }
+        }
+    }
+}
+
+DynInstPtr
+ROB::getResolvedPendingSquashInst(ThreadID tid)
+{
+    for (auto instIt = instList[tid].begin(); instIt != instList[tid].end(); instIt++) {
+        auto inst = (*instIt);
+        if (inst->hasPendingSquash()
+            && !inst->isArgsTainted()
+            && !inst->isSquashed()  // if it's already squashed, we ignore it
+            ) {
+            return inst;
+        }
+    }
+    return NULL;
 }
 
 } // namespace o3

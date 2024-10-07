@@ -1,45 +1,48 @@
-# The gem5 Simulator
+# Speculative Taint Tracking (STT)
 
-This is the repository for the gem5 simulator. It contains the full source code
-for the simulator and all tests and regressions.
+## 1. About STT
 
-The gem5 simulator is a modular platform for computer-system architecture
-research, encompassing system-level architecture as well as processor
-microarchitecture. It is primarily used to evaluate new hardware designs,
-system software changes, and compile-time and run-time system optimizations.
+Speculative taint tracking (STT) is a hardware defense mechanism for blocking all types of speculative execution attacks in modern processors. All details can be found in our MICRO'19 paper [here](dl.acm.org/citation.cfm?id=3358274). Here is a sample format for citing our work:
+```
+@inproceedings{yu2019stt,
+  title={Speculative Taint Tracking (STT) A Comprehensive Protection for Speculatively Accessed Data},
+  author={Yu, Jiyong and Yan, Mengjia and Khyzha, Artem and Morrison, Adam and Torrellas, Josep and Fletcher, Christopher W},
+  booktitle={Proceedings of the 52nd Annual IEEE/ACM International Symposium on Microarchitecture},
+  pages={954--968},
+  year={2019}
+}
+```
 
-The main website can be found at <http://www.gem5.org>.
+## 2. Implementation
 
-## Testing status
+We implement STT using Gem5 simulator. This is built on an early version of Gem5 (commit:38a1e23). To make the simulation close to a commodity processor, we use Gem5's o3 processor. The major changes are:
 
-**Note**: These regard tests run on the develop branch of gem5:
-<https://github.com/gem5/gem5/tree/develop>.
+* add taint tracking logic to track all tainted data
+* add delay logic for handling explicit channels (memory instructions)
+* add delay logic for handling implicit channels (branch prediction, memory speculation, ld-st forwarding)
 
-[![Daily Tests](https://github.com/gem5/gem5/actions/workflows/daily-tests.yaml/badge.svg?branch=develop)](https://github.com/gem5/gem5/actions/workflows/daily-tests.yaml)
-[![Weekly Tests](https://github.com/gem5/gem5/actions/workflows/weekly-tests.yaml/badge.svg?branch=develop)](https://github.com/gem5/gem5/actions/workflows/weekly-tests.yaml)
-[![Compiler Tests](https://github.com/gem5/gem5/actions/workflows/compiler-tests.yaml/badge.svg?branch=develop)](https://github.com/gem5/gem5/actions/workflows/compiler-tests.yaml)
+## 3. Usage
 
-## Getting started
+### 1) Follow the steps for building Gem5 executable.
+How to use Gem5 can be found [here](gem5.org).
 
-A good starting point is <http://www.gem5.org/about>, and for
-more information about building the simulator and getting started
-please see <http://www.gem5.org/documentation> and
-<http://www.gem5.org/documentation/learning_gem5/introduction>.
+### 2) We add the following configurations for STT:
+* --threat_model [string]: different threat models
+    * UnsafeBaseline: unmodified out-of-order processor without protection
+    * Spectre: Spectre threat model (covering control-flow speculation)
+    * Futuristic: Futuristic threat model (covering all types speculation, exceptions, interrupts)
 
-## Building gem5
+* --needsTSO [bool]: configure the consistency model
+    * True: use Total Store Ordering (TSO) model
+    * False: use Relaxed Consistency (RC) model
 
-To build gem5, you will need the following software: g++ or clang,
-Python (gem5 links in the Python interpreter), SCons, zlib, m4, and lastly
-protobuf if you want trace capture and playback support. Please see
-<http://www.gem5.org/documentation/general_docs/building> for more details
-concerning the minimum versions of these tools.
+* --STT [int]: configure STT
+    * 0: disable STT (in this case, the defense scheme blocks all speculative transmitters)
+    * 1: enable STT
 
-Once you have all dependencies resolved, execute
-`scons build/ALL/gem5.opt` to build an optimized version of the gem5 binary
-(`gem5.opt`) containing all gem5 ISAs. If you only wish to compile gem5 to
-include a single ISA, you can replace `ALL` with the name of the ISA. Valid
-options include `ARM`, `NULL`, `MIPS`, `POWER`, `RISCV`, `SPARC`, and `X86`
-The complete list of options can be found in the build_opts directory.
+* --implicit_channel [int]: configure implicit channel protection
+    * 0: ignore implicit channels
+    * 1: enable protection against implicit channels
 
 See https://www.gem5.org/documentation/general_docs/building for more
 information on building gem5.

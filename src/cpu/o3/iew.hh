@@ -274,6 +274,10 @@ class IEW
      */
     void writebackInsts();
 
+    /** [Jiyong,STT] wakeup untaint insts **/
+    /** after writebackInsts and try to wake untaint instrs **/
+    void wakeUntaintInsts();
+
     /** Checks if any of the stall conditions are currently true. */
     bool checkStall(ThreadID tid);
 
