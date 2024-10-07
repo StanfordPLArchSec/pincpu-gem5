@@ -255,6 +255,7 @@ LSQUnit::LSQUnitStats::LSQUnitStats(statistics::Group *parent)
     : statistics::Group(parent),
       ADD_STAT(forwLoads, statistics::units::Count::get(),
                "Number of loads that had data forwarded from stores"),
+      ADD_STAT(taintedForwLoads, statistics::units::Count::get(), "Number of loads that forwarded tainted data"),
       ADD_STAT(squashedLoads, statistics::units::Count::get(),
                "Number of loads squashed"),
       ADD_STAT(ignoredResponses, statistics::units::Count::get(),
@@ -1090,6 +1091,13 @@ LSQUnit::writeback(const DynInstPtr &inst, PacketPtr pkt)
         inst->setExecuted();
 
         if (inst->fault == NoFault) {
+            // Jiyong, STT: writeback forwarded data
+            if (inst->alreadyForwarded) {
+                ++stats.forwLoads;
+                ++stats.taintedForwLoads;
+                assert(cpu->stt && cpu->impChannel);
+                memcpy(inst->memData, inst->stFwdData, inst->stFwdDataSize);
+            }
             // Complete access to copy data to proper place.
             inst->completeAcc(pkt);
         } else {
@@ -1326,8 +1334,6 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
     load_entry.setRequest(request);
     assert(load_inst);
 
-    assert(!load_inst->isExecuted());
-
     // Make sure this isn't a strictly ordered load
     // A bit of a hackish way to get strictly ordered accesses to work
     // only if they're at the head of the LSQ and are ready to commit
@@ -1456,6 +1462,9 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
                 // Get shift amount for offset into the store's data.
                 int shift_amt = request->mainReq()->getVaddr() -
                     store_it->instruction()->effAddr;
+
+                if (readCheckForwardSTT(store_it, load_inst, request, shift_amt))
+                    break;
 
                 // Allocate memory if this is the first time a load is issued.
                 if (!load_inst->memData) {
@@ -1649,6 +1658,56 @@ LSQUnit::getStoreHeadSeqNum()
         return storeQueue.front().instruction()->seqNum;
     else
         return 0;
+}
+
+// [SafeSpec] update FenceDelay State
+/*** [Jiyong,STT] update logic for STT ***/
+void
+LSQUnit::updateVisibleState()
+{
+    //iterate all the loads and update its fencedelay state accordingly
+    for (LQEntry &load_ent : loadQueue) {
+        DynInstPtr inst = load_ent.instruction();
+        inst->fenceDelay(cpu->stt && inst->isArgsTainted());
+    }
+}
+
+bool
+LSQUnit::readCheckForwardSTT(SQIterator store_it, const DynInstPtr& load_inst, LSQRequest *req, int shift_amt)
+{
+    // we DO Forwarding
+    /***** [Jiyong, STT] if store addr is tainted, load addr is untainted, we still needs to issue a normal load without writeback" **/
+  if (cpu->stt && cpu->impChannel && store_it->instruction()->isAddrTainted() && !load_inst->isAddrTainted()) {
+        /*
+         * here we do ld-st forwarding. But since store address is tainted, we also launch normal load afterwards
+         */
+
+        // Allocate memory if this is the first time a load is issued.
+        if (!load_inst->stFwdData) {
+            load_inst->stFwdData = new uint8_t[req->mainReq()->getSize()];
+            load_inst->stFwdDataSize = req->mainReq()->getSize();
+        }
+        if (store_it->isAllZeros())
+            memset(load_inst->stFwdData, 0, req->mainReq()->getSize());
+        else
+            memcpy(load_inst->stFwdData,
+		   store_it->data() + shift_amt, req->mainReq()->getSize());
+
+        DPRINTF(LSQUnit, "Forwarding from store idx %i to load to "
+                "addr %#x\n", store_it._idx, req->mainReq()->getVaddr());
+        DPRINTF(LSQUnit, "Still need dummy load to hide tainted address of store");
+
+        // Jiyong, STT: writeback is deferred to GETS writeback
+
+        // We'll say this has a 1 cycle load-store forwarding latency
+        // for now.
+        // @todo: Need to make this a parameter.
+        load_inst->alreadyForwarded = true;
+
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace o3

@@ -458,6 +458,9 @@ IEW::squashDueToBranch(const DynInstPtr& inst, ThreadID tid)
         inst->staticInst->advancePC(*toCommit->pc[tid]);
 
         toCommit->mispredictInst[tid] = inst;
+        toCommit->instCausingSquash[tid] = inst;
+
+        // the mispredicted instr itself should not be squashed
         toCommit->includeSquashInst[tid] = false;
 
         wroteToTimeBuffer = true;
@@ -478,11 +481,13 @@ IEW::squashDueToMemOrder(const DynInstPtr& inst, ThreadID tid)
     // the squash.
     if (!toCommit->squash[tid] ||
             inst->seqNum <= toCommit->squashedSeqNum[tid]) {
-        toCommit->squash[tid] = true;
+        toCommit->squash[tid] = true;   // tell commit that you need to squash
+        toCommit->squashedSeqNum[tid] = inst->seqNum;   // tell commit from which instr to squash
 
         toCommit->squashedSeqNum[tid] = inst->seqNum;
         set(toCommit->pc[tid], inst->pcState());
         toCommit->mispredictInst[tid] = NULL;
+        toCommit->instCausingSquash[tid] = inst;
 
         // Must include the memory violator in the squash.
         toCommit->includeSquashInst[tid] = true;
@@ -1203,6 +1208,19 @@ IEW::executeInsts()
             } else if (inst->isLoad()) {
                 // Loads will mark themselves as executed, and their writeback
                 // event adds the instruction to the queue to commit
+
+                // [SafeSpec] a lifetime of a load
+                // always let it translate --> translation not complete, defer
+                // if !loadInExec, need to check whether there
+                // is a virtual fence ahead
+                // --> if existing virtual fence, defer
+                if (inst->fenceDelay()){
+                    DPRINTF(IEW, "Deferring load due to virtual fence.\n");
+                    instQueue.deferMemInst(inst);
+
+                    continue;
+                }
+
                 fault = ldstQueue.executeLoad(inst);
 
                 if (inst->isTranslationDelayed() &&
@@ -1448,13 +1466,15 @@ IEW::tick()
         dispatch(tid);
     }
 
+    ldstQueue.updateVisibleState();
+
     if (exeStatus != Squashing) {
         executeInsts();
 
         writebackInsts();
 
-        // [TPE, STT, SPT]
-        wakeDelayedIssueInsts();
+        if (cpu->stt && cpu->moreTransmitInsts)
+            wakeUntaintInsts();
 
         // Have the instruction queue try to schedule any ready instructions.
         // (In actuality, this scheduling is for instructions that will
@@ -1616,9 +1636,9 @@ IEW::checkMisprediction(const DynInstPtr& inst)
 }
 
 void
-IEW::wakeDelayedIssueInsts()
+IEW::wakeUntaintInsts()
 {
-    instQueue.wakeDelayedIssueInsts();
+    instQueue.wakeUntaintInsts();
 }
 
 } // namespace o3

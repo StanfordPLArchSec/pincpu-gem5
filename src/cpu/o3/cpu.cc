@@ -323,6 +323,18 @@ CPU::CPU(const BaseO3CPUParams &params)
 
     // [TPE, STT, SPT] Set speculation model.
     speculationModel = params.speculationModel;
+
+    /*** [STT] additional configurations ***/
+    stt = params.stt;
+    impChannel = params.implicitChannel;
+    moreTransmitInsts = params.moreTransmitInsts;
+    cprintf("applySTT = %d, implicit_channel = %d, moreTransmitInsts = %d\n",
+            stt, impChannel, moreTransmitInsts);
+
+    if (impChannel)
+        assert(stt);
+
+    assert (moreTransmitInsts >= 0 && moreTransmitInsts <= 2);
 }
 
 void

@@ -277,6 +277,12 @@ class LSQUnit
     /** Writes back stores. */
     void writebackStores();
 
+    /** [mengjia] Update Visbible State.
+     * In the mode defence relying on fence: setup fenceDelay state.
+     * In the mode defence relying on invisibleSpec:
+     * setup readyToExpose*/
+    void updateVisibleState();
+
     /** Completes the data access that has been returned from the
      * memory system. */
     void completeDataAccess(PacketPtr pkt);
@@ -516,6 +522,9 @@ class LSQUnit
         /** Total number of loads forwaded from LSQ stores. */
         statistics::Scalar forwLoads;
 
+        /** Total number of loads forwaded from LSQ stores. */
+        statistics::Scalar taintedForwLoads;
+
         /** Total number of squashed loads. */
         statistics::Scalar squashedLoads;
 
@@ -563,9 +572,12 @@ class LSQUnit
 
     /** Returns whether or not the LSQ unit is stalled. */
     bool isStalled()  { return stalled; }
+
   public:
     typedef typename CircularQueue<LQEntry>::iterator LQIterator;
     typedef typename CircularQueue<SQEntry>::iterator SQIterator;
+
+    bool readCheckForwardSTT(SQIterator store_it, const DynInstPtr& load_inst, LSQRequest *req, int shift_amt);
 };
 
 } // namespace o3

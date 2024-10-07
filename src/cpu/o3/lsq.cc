@@ -1690,5 +1690,19 @@ LSQ::write(LSQRequest* request, uint8_t *data, ssize_t store_idx)
     return thread.at(tid).write(request, data, store_idx);
 }
 
+// [mengjia]
+void
+LSQ::updateVisibleState()
+{
+    std::list<ThreadID>::iterator threads = activeThreads->begin();
+    std::list<ThreadID>::iterator end = activeThreads->end();
+
+    while (threads != end) {
+        ThreadID tid = *threads++;
+
+        thread[tid].updateVisibleState();
+    }
+}
+
 } // namespace o3
 } // namespace gem5

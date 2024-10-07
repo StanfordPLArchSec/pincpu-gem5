@@ -699,6 +699,13 @@ def addCommonOptions(parser, default_isa: Optional[ISA] = None):
         help="[TPE, STT, SPT] Speculation model",
     )
 
+    # [STT] add options to configure needsTSO and scheme
+    parser.add_argument("--stt", action="store_true",
+            help="Whether using STT mechanism(threat_model mustn't be Unsafe.")
+    parser.add_argument("--implicit-channel", action="store_true",
+            help="Whether enabling defense mechanism for implicit channel")
+    parser.add_argument("--more-transmit-insts", default=1, action="store", type=int,
+            help="Include more transmit instruction types.")
 
 def addSEOptions(parser):
     # Benchmark options

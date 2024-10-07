@@ -596,6 +596,24 @@ class CPU : public BaseCPU
 
     /** [TPE, STT, SPT] Speculation model. */
     SpeculationModel speculationModel;
+
+    /*** [STT] Additional configs for O3CPU ***/
+
+    // whether to issue packets in execution stage(false if using Fence)
+    // NHM-FIXME: Remove.    
+    bool protectionEnabled() const
+    {
+        return stt;
+    }
+
+    // whether to apply STT
+    bool stt;
+
+    // whether add implicit flow protection
+    bool impChannel;
+
+    // whether consider more transmit instructions
+    int moreTransmitInsts;
 };
 
 } // namespace o3

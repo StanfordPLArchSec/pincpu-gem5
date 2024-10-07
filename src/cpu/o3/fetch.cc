@@ -949,12 +949,27 @@ Fetch::checkSignalsAndUpdate(ThreadID tid)
         // invalid state we generated in after sequence number
         if (fromCommit->commitInfo[tid].mispredictInst &&
             fromCommit->commitInfo[tid].mispredictInst->isControl()) {
-            branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
-                    *fromCommit->commitInfo[tid].pc,
-                    fromCommit->commitInfo[tid].branchTaken, tid);
+
+            if ((cpu->stt && cpu->impChannel) && fromCommit->commitInfo[tid].mispredictInst->isArgsTainted()) { 
+                // the squashed branch is tainted, which we must delay
+                DelayedSquashReq delayedReq;
+                delayedReq.misp_inst   = fromCommit->commitInfo[tid].mispredictInst;
+                delayedReq.doneSeqNum  = fromCommit->commitInfo[tid].doneSeqNum;
+                delayedReq.pc.reset(fromCommit->commitInfo[tid].pc->clone());
+                delayedReq.branchTaken = fromCommit->commitInfo[tid].branchTaken;
+                delayedSquashReqList.insert(tid, std::move(delayedReq));
+            }
+            else {
+                // do the squash since we are not in eager scheme or the branch is not tainted
+                branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
+                                   *fromCommit->commitInfo[tid].pc,
+                                   fromCommit->commitInfo[tid].branchTaken,
+                                   tid);
+                delayedSquashReqList.squashReqs(tid, fromCommit->commitInfo[tid].doneSeqNum);
+            }
         } else {
-            branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
-                              tid);
+            branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum, tid);
+            delayedSquashReqList.squashReqs(tid, fromCommit->commitInfo[tid].doneSeqNum);
         }
 
         return true;
@@ -962,6 +977,31 @@ Fetch::checkSignalsAndUpdate(ThreadID tid)
         // Update the branch predictor if it wasn't a squashed instruction
         // that was broadcasted.
         branchPred->update(fromCommit->commitInfo[tid].doneSeqNum, tid);
+        delayedSquashReqList.squashReqs(tid, fromCommit->commitInfo[tid].doneSeqNum);
+    } else {
+        // there is no squash/update signal from commit in current cycle.
+        // We will squash branch predictor if there is outstanding branch untainted
+        if (!delayedSquashReqList.empty(tid)) {
+            assert (cpu->stt && cpu->impChannel);
+            InstSeqNum squashedSeqNum = 0;
+            for (auto it = delayedSquashReqList.delayedSquashes[tid].begin();
+                      it != delayedSquashReqList.delayedSquashes[tid].end();
+                      it++) {
+                if (!it->misp_inst->isArgsTainted()) {
+                    branchPred->squash(it->doneSeqNum,
+                                       *it->pc,
+                                       it->branchTaken,
+                                       tid);
+                    squashedSeqNum = it->doneSeqNum;
+                    it = delayedSquashReqList.delayedSquashes[tid].erase(it);
+                    break;
+                }
+            }
+
+            if (squashedSeqNum) {
+                delayedSquashReqList.squashReqs(tid, squashedSeqNum);
+            }
+        }
     }
 
     // Check squash signals from decode.
@@ -972,11 +1012,14 @@ Fetch::checkSignalsAndUpdate(ThreadID tid)
         // Update the branch predictor.
         if (fromDecode->decodeInfo[tid].branchMispredict) {
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
-                    *fromDecode->decodeInfo[tid].nextPC,
-                    fromDecode->decodeInfo[tid].branchTaken, tid);
+                              *fromDecode->decodeInfo[tid].nextPC,
+                              fromDecode->decodeInfo[tid].branchTaken,
+                              tid);
+            delayedSquashReqList.squashReqs(tid, fromDecode->commitInfo[tid].doneSeqNum);
         } else {
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
                               tid);
+            delayedSquashReqList.squashReqs(tid, fromDecode->commitInfo[tid].doneSeqNum);
         }
 
         if (fetchStatus[tid] != Squashing) {
@@ -1602,6 +1645,34 @@ void
 Fetch::IcachePort::recvReqRetry()
 {
     fetch->recvReqRetry();
+}
+
+Fetch::DelayedSquashReq::DelayedSquashReq()
+    : misp_inst(nullptr)
+{
+}
+
+void
+Fetch::DelayedSquashReqList::squashReqs(ThreadID tid, InstSeqNum seqNum)
+{
+    auto it = delayedSquashes[tid].begin();
+    while (it != delayedSquashes[tid].end()) {
+        assert (it->misp_inst);
+        if (it->misp_inst->isSquashed()){
+            it = delayedSquashes[tid].erase(it);
+        }
+        else if (it->doneSeqNum >= seqNum) {
+            it = delayedSquashes[tid].erase(it);
+        }
+        else
+            it++;
+    }
+}
+
+void
+Fetch::DelayedSquashReqList::insert(ThreadID tid, DelayedSquashReq &&req)
+{
+    delayedSquashes[tid].push_back(std::move(req));
 }
 
 } // namespace o3

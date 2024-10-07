@@ -46,6 +46,7 @@
 #include "debug/DynInst.hh"
 #include "debug/IQ.hh"
 #include "debug/O3PipeView.hh"
+#include "cpu/op_class.hh"
 
 namespace gem5
 {
@@ -69,6 +70,9 @@ DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
     instFlags[RecordResult] = true;
     instFlags[Predicate] = true;
     instFlags[MemAccPredicate] = true;
+    /*** [Jiyong,STT] ***/
+    instFlags[HasPendingSquash] = false;
+    alreadyForwarded = false;
 
 #ifndef NDEBUG
     ++cpu->instcount;
@@ -90,6 +94,9 @@ DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
     cpu->snList.insert(seqNum);
 #endif
 
+    // [Jiyong,STT] set argProducers to nullptr
+    for (auto &inst : argProducers)
+        inst = nullptr;
 }
 
 DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
@@ -255,6 +262,9 @@ DynInst::~DynInst()
     delete traceData;
     fault = NoFault;
 
+    if (stFwdData)
+      delete [] stFwdData;
+
 #ifndef NDEBUG
     --cpu->instcount;
 
@@ -316,6 +326,29 @@ DynInst::markSrcRegReady(RegIndex src_idx)
 {
     readySrcIdx(src_idx, true);
     markSrcRegReady();
+}
+
+/*** [Jiyong,STT] ***/
+bool
+DynInst::readyToIssue_UT() const
+{
+    bool ret = status[CanIssue];
+    if (cpu->moreTransmitInsts == 1) {
+        // consider int div and fp div
+        if (opClass() == IntDivOp   ||
+            opClass() == FloatDivOp ||
+            opClass() == FloatSqrtOp)
+            ret = ret && (!instFlags[IsArgsTainted]);
+    }
+    else if (cpu->moreTransmitInsts == 2) {
+        if (opClass() == IntDivOp ||
+            isFloating())
+            ret = ret && (!instFlags[IsArgsTainted]);
+    }
+    else {
+        assert (0);
+    }
+    return ret;
 }
 
 

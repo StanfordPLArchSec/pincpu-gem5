@@ -304,6 +304,14 @@ class Commit
     /** Returns the thread ID to use based on an oldest instruction policy. */
     ThreadID oldestReady();
 
+    /*** [Jiyong, STT] ***/
+    /** Process the squash signal from IEW stage if a squash needs to be handled at current cycle.
+     *  ifFromIEW=true indicates the current squash signal is from IEW stage
+     *  ifFromIEW=false indicates the current squash signal is from pending mispredicted instr(must enable STT) */
+    void handleSquashSignalFromIEW(ThreadID tid);
+    void handleSquashSignalFromROB(ThreadID tid, DynInstPtr &pendingMispInst);
+
+
   public:
     /** Reads the PC of a specific thread. */
     const PCStateBase &pcState(ThreadID tid) { return *pc[tid]; }
@@ -454,6 +462,8 @@ class Commit
         a possible livelock senario.  */
     bool avoidQuiesceLiveLock;
 
+    int stalled_counter;
+
     /** Updates commit stats based on this instruction. */
     void updateComInstStats(const DynInstPtr &inst);
 
@@ -490,6 +500,14 @@ class Commit
 
         /** Number of cycles where the commit bandwidth limit is reached. */
         statistics::Scalar commitEligibleSamples;
+
+        /*** [Jiyong, STT] other statistics ***/
+        /** Stat for the total number of memory violation that caused a squash. */
+        statistics::Scalar memoryViolations;
+        /** Stat for the total number of delayed branch squashes. */
+        statistics::Scalar stalledBranchMispredicts;
+        /** Stat for the total number of delayed memory violation squashes. */
+        statistics::Scalar stalledMemoryViolations;
     } stats;
 };
 
