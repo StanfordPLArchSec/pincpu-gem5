@@ -92,6 +92,7 @@ class DynInst : public ExecContext, public RefCounted
         PhysRegIdPtr *prevDestIdx;
         PhysRegIdPtr *srcIdx;
         uint8_t *readySrcIdx;
+        DynInstPtr *argProducers;
     };
 
     static void *operator new(size_t count, Arrays &arrays);
@@ -249,6 +250,9 @@ class DynInst : public ExecContext, public RefCounted
     // Whether or not the source register is ready, one bit per register.
     uint8_t *_readySrcIdx;
 
+    // [STT] Arg producers
+    DynInstPtr *_argProducers;
+
   public:
     size_t numSrcs() const { return _numSrcs; }
     size_t numDests() const { return _numDests; }
@@ -387,11 +391,6 @@ class DynInst : public ExecContext, public RefCounted
     /////////////////////// Checker //////////////////////
     // Need a copy of main request pointer to verify on writes.
     RequestPtr reqToVerify;
-
-  protected:
-    /*** [STT] the producer of arguments(-1 for none) ***/
-    std::array<DynInstPtr, 8> argProducers;
-
 
   public:
     /** Records changes to result? */
@@ -1057,16 +1056,16 @@ class DynInst : public ExecContext, public RefCounted
     /*** [Jiyong,STT] functions related to argProducer ***/
     DynInstPtr getArgProducer(int idx)
     {
-        return argProducers[idx];
+        return _argProducers[idx];
     }
 
     void clearArgProducer(int idx){
-        argProducers[idx] = nullptr;
+        _argProducers[idx] = nullptr;
     }
 
     void setArgProducer(int idx, DynInstPtr &inst)
     {
-        argProducers[idx] = inst;
+        _argProducers[idx] = inst;
     }
 
   private:

@@ -60,7 +60,8 @@ DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
       _numSrcs(arrays.numSrcs), _numDests(arrays.numDests),
       _flatDestIdx(arrays.flatDestIdx), _destIdx(arrays.destIdx),
       _prevDestIdx(arrays.prevDestIdx), _srcIdx(arrays.srcIdx),
-      _readySrcIdx(arrays.readySrcIdx), macroop(_macroop)
+      _readySrcIdx(arrays.readySrcIdx), _argProducers(arrays.argProducers),
+      macroop(_macroop)
 {
     std::fill(_readySrcIdx, _readySrcIdx + (numSrcs() + 7) / 8, 0);
 
@@ -93,10 +94,6 @@ DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
 #ifdef GEM5_DEBUG
     cpu->snList.insert(seqNum);
 #endif
-
-    // [Jiyong,STT] set argProducers to nullptr
-    for (auto &inst : argProducers)
-        inst = nullptr;
 }
 
 DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
@@ -171,8 +168,12 @@ DynInst::operator new(size_t count, Arrays &arrays)
     size_t ready_src_idx_size =
         sizeof(*arrays.readySrcIdx) * ((num_srcs + 7) / 8);
 
+    uintptr_t arg_producers =
+        roundUp(ready_src_idx + ready_src_idx_size, alignof(DynInstPtr));
+    size_t arg_producers_size = sizeof(*arrays.argProducers) * num_srcs;
+
     // Figure out how much space we need in total.
-    size_t total_size = ready_src_idx + ready_src_idx_size;
+    size_t total_size = arg_producers + arg_producers_size;
 
     // Actually allocate it.
     uint8_t *buf = (uint8_t *)::operator new(total_size);
@@ -183,6 +184,7 @@ DynInst::operator new(size_t count, Arrays &arrays)
     arrays.prevDestIdx = (PhysRegIdPtr *)(buf + prev_dest_idx);
     arrays.srcIdx = (PhysRegIdPtr *)(buf + src_idx);
     arrays.readySrcIdx = (uint8_t *)(buf + ready_src_idx);
+    arrays.argProducers = (DynInstPtr *)(buf + arg_producers);
 
     // Initialize all the extra components.
     new (arrays.flatDestIdx) RegId[num_dests];
@@ -190,6 +192,7 @@ DynInst::operator new(size_t count, Arrays &arrays)
     new (arrays.prevDestIdx) PhysRegIdPtr[num_dests];
     new (arrays.srcIdx) PhysRegIdPtr[num_srcs];
     new (arrays.readySrcIdx) uint8_t[num_srcs];
+    new (arrays.argProducers) DynInstPtr[num_srcs];
 
     return buf;
 }
