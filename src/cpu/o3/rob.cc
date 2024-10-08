@@ -599,9 +599,8 @@ ROB::updateVisibleState()
  * [Jiyong, STT] routines for STT
  */
 void
-ROB::explicit_flow(ThreadID tid, InstIt instIt)
+ROB::explicit_flow(ThreadID tid, DynInstPtr &inst)
 {
-    DynInstPtr inst = (*instIt);
     for (int i = 0; i < inst->numSrcRegs(); i++){
         if (inst->getArgProducer(i)) {
             DynInstPtr argProducer = inst->getArgProducer(i);
@@ -618,9 +617,8 @@ ROB::explicit_flow(ThreadID tid, InstIt instIt)
 }
 
 void
-ROB::address_flow(ThreadID tid, InstIt instIt)
+ROB::address_flow(ThreadID tid, DynInstPtr &inst)
 {
-    DynInstPtr inst = (*instIt);
     if (inst->isMemRef()) {
         if (inst->isStore()) {
             for (int i = 1; i < inst->numSrcRegs(); i++){
@@ -659,20 +657,10 @@ ROB::address_flow(ThreadID tid, InstIt instIt)
 }
 
 void
-ROB::implicit_flow(ThreadID tid, InstIt instIt)
+ROB::implicit_flow(ThreadID tid, DynInstPtr &inst, bool &prev_implicit_flow)
 {
-    DynInstPtr inst = (*instIt);
-    if (cpu->impChannel) {
-        for (auto prevInstIt = instList[tid].begin(); prevInstIt != instIt; prevInstIt++) {
-            DynInstPtr prevInst = (*prevInstIt);
-            if (prevInst->isControl() && prevInst->hasExplicitFlow()) {
-                inst->hasImplicitFlow(true);
-                return;
-            }
-        }
-    }
-    inst->hasImplicitFlow(false);
-    return;
+    inst->hasImplicitFlow(prev_implicit_flow);
+    prev_implicit_flow |= (inst->isControl() && inst->hasExplicitFlow());
 }
 
 void
@@ -680,19 +668,17 @@ ROB::compute_taint()
 {
     assert(cpu->stt);
 
-    std::list<ThreadID>::iterator threads = activeThreads->begin();
-    std::list<ThreadID>::iterator end = activeThreads->end();
-
-    while (threads != end) {
-        ThreadID tid = *threads++;
+    for (ThreadID tid : *activeThreads) {
         if (instList[tid].empty())
             continue;
 
-        for (auto instIt = instList[tid].begin(); instIt != instList[tid].end(); instIt++) {
-            explicit_flow(tid, instIt);
-            implicit_flow(tid, instIt);
-            address_flow(tid, instIt);
-            DynInstPtr inst = (*instIt);
+        bool prev_implicit_flow = false;
+
+        for (DynInstPtr &inst : instList[tid]) {
+            explicit_flow(tid, inst);
+            if (cpu->impChannel)
+                implicit_flow(tid, inst, prev_implicit_flow);
+            address_flow(tid, inst);
 
             inst->isArgsTainted(inst->hasExplicitFlow());
 
