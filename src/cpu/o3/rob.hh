@@ -280,7 +280,7 @@ class ROB
     void compute_taint();
 
     // compute the number of cycles from an instruction being issued to it being !argsTainted
-    // used to evaluate 
+    // used to evaluate
 
     // find a instr in a rob list which has a pending squash, but is not argTaintewhich has a pending squash, but is not argTainted
     // which means that we should execute this squash
@@ -314,11 +314,11 @@ class ROB
     /*** [Jiyong,STT] explicit flow and implicit flow logic ***/
     /*   they are private because they can only be called by compute_taint()  */
     // if this instr has explicit flow wrt its producers
-    void explicit_flow(ThreadID tid, InstIt instIt);
+    void explicit_flow(ThreadID tid, DynInstPtr &inst);
     // if this instr has explicit flow w.r.t its preceding branches
-    void implicit_flow(ThreadID tid, InstIt instIt);
+    void implicit_flow(ThreadID tid, DynInstPtr &inst, bool &prev_implicit_flow);
     // if this instr has its address tainted(only for memory instructions)
-    void address_flow(ThreadID tid, InstIt instIt);
+    void address_flow(ThreadID tid, DynInstPtr &inst);
 
   public:
     /** Iterator pointing to the instruction which is the last instruction
