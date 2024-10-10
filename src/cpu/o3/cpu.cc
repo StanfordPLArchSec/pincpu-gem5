@@ -323,6 +323,7 @@ CPU::CPU(const BaseO3CPUParams &params)
 
     /*** [STT] additional configurations ***/
     stt = params.stt;
+    sttBugfixes = params.sttBugfixes;
     impChannel = params.implicitChannel;
     moreTransmitInsts = params.moreTransmitInsts;
     cprintf("applySTT = %d, implicit_channel = %d, moreTransmitInsts = %d\n",
