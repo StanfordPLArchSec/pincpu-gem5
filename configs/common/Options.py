@@ -706,7 +706,7 @@ def addCommonOptions(parser, default_isa: Optional[ISA] = None):
                         help="[STT] Enable bugfixes to STT to restore security.")
     parser.add_argument("--implicit-channel", action="store_true",
             help="Whether enabling defense mechanism for implicit channel")
-    parser.add_argument("--more-transmit-insts", default=1, action="store", type=int,
+    parser.add_argument("--more-transmit-insts", default=0, action="store", type=int,
             help="Include more transmit instruction types.")
 
 def addSEOptions(parser):
