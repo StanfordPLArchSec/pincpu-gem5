@@ -225,5 +225,6 @@ class BaseO3CPU(BaseCPU):
 
     # [STT] STT configurations
     stt = Param.Bool(False, "Apply STT protection mechanism")
+    sttBugfixes = Param.Bool(False, "[STT] Apply bugfixes to restore security")
     implicitChannel = Param.Bool(False, "If handling implicit channel")
     moreTransmitInsts = Param.Int(0, "More transmit instruction types")

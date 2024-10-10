@@ -1191,6 +1191,15 @@ IEW::executeInsts()
             DPRINTF(IEW, "Execute: Calculating address for memory "
                     "reference.\n");
 
+            if (cpu->sttBugfixes) {
+                if (inst->fenceDelay()) {
+                    assert(!(inst->isAddrTainted() && inst->translationStarted()));
+                    instQueue.deferMemInst(inst);
+                    continue;
+                }
+                assert(!inst->isAddrTainted());
+            }
+              
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isAtomic()) {
                 // AMOs are treated like store requests
@@ -1216,10 +1225,12 @@ IEW::executeInsts()
                 // --> if existing virtual fence, defer
                 if (inst->fenceDelay()){
                     DPRINTF(IEW, "Deferring load due to virtual fence.\n");
+                    assert(!(inst->isAddrTainted() && inst->translationStarted())); // It better not have started translating its address if it's tainted.
                     instQueue.deferMemInst(inst);
 
                     continue;
                 }
+                assert(!inst->isAddrTainted());
 
                 fault = ldstQueue.executeLoad(inst);
 

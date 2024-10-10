@@ -609,6 +609,9 @@ class CPU : public BaseCPU
     // whether to apply STT
     bool stt;
 
+    /** [STT] Whether to enable bugfixes to restore security of STT. */
+    bool sttBugfixes;
+
     // whether add implicit flow protection
     bool impChannel;
 

@@ -1666,18 +1666,38 @@ void
 LSQUnit::updateVisibleState()
 {
     //iterate all the loads and update its fencedelay state accordingly
-    for (LQEntry &load_ent : loadQueue) {
-        DynInstPtr inst = load_ent.instruction();
-        inst->fenceDelay(cpu->stt && inst->isArgsTainted());
+    for (const LQEntry &load_ent : loadQueue) {
+        const DynInstPtr &inst = load_ent.instruction();
+        // Sanity check: STT previously checked isArgsTainted(), not isAddrTainted().
+        // No clue why.
+        assert(inst->isAddrTainted() == inst->isArgsTainted());
+        inst->fenceDelay(cpu->stt && inst->isAddrTainted());
+    }
+
+    // Also iterate over stores.
+    if (cpu->sttBugfixes) {
+        for (const SQEntry &store_ent : storeQueue) {
+            const DynInstPtr &inst = store_ent.instruction();
+            inst->fenceDelay(cpu->stt && inst->isAddrTainted());
+        }
     }
 }
 
 bool
 LSQUnit::readCheckForwardSTT(SQIterator store_it, const DynInstPtr& load_inst, LSQRequest *req, int shift_amt)
 {
+    const DynInstPtr &store_inst = store_it->instruction();
+
+    assert(!load_inst->isAddrTainted()); // If the load address is tainted, we're SCREWED.
+
+    // If we've enabled bugfixes, a tainted store never should've entered the SQ in the first place.
+    panic_if(cpu->sttBugfixes && store_inst->isAddrTainted() && store_inst->translationStarted(),
+             "%s called on store with tainted address: %s\n",
+             __func__, store_inst->staticInst->disassemble(0));
+
     // we DO Forwarding
     /***** [Jiyong, STT] if store addr is tainted, load addr is untainted, we still needs to issue a normal load without writeback" **/
-  if (cpu->stt && cpu->impChannel && store_it->instruction()->isAddrTainted() && !load_inst->isAddrTainted()) {
+  if (cpu->stt && cpu->impChannel && store_inst->isAddrTainted() && !load_inst->isAddrTainted()) {
         /*
          * here we do ld-st forwarding. But since store address is tainted, we also launch normal load afterwards
          */
