@@ -435,8 +435,11 @@ def takeSimpointCheckpoints(simpoints, interval_length, cptdir):
 
 
 def restoreSimpointCheckpoint():
-    exit_event = m5.simulate()
-    exit_cause = exit_event.getCause()
+    while True:
+        exit_event = m5.simulate()
+        exit_cause = exit_event.getCause()
+        if exit_cause != "simulate() limit reached":
+            break    
 
     if exit_cause == "simpoint starting point found":
         print("Warmed up! Dumping and resetting stats!")
