@@ -1095,7 +1095,7 @@ LSQUnit::writeback(const DynInstPtr &inst, PacketPtr pkt)
             if (inst->alreadyForwarded) {
                 ++stats.forwLoads;
                 ++stats.taintedForwLoads;
-                assert(cpu->stt && cpu->impChannel);
+                assert(cpu->stt && cpu->impChannel != ImplicitChannelMode::None);
                 memcpy(inst->memData, inst->stFwdData, inst->stFwdDataSize);
             }
             // Complete access to copy data to proper place.
@@ -1697,7 +1697,7 @@ LSQUnit::readCheckForwardSTT(SQIterator store_it, const DynInstPtr& load_inst, L
 
     // we DO Forwarding
     /***** [Jiyong, STT] if store addr is tainted, load addr is untainted, we still needs to issue a normal load without writeback" **/
-  if (cpu->stt && cpu->impChannel && store_inst->isAddrTainted() && !load_inst->isAddrTainted()) {
+    if (cpu->stt && cpu->impChannel != ImplicitChannelMode::None && store_inst->isAddrTainted() && !load_inst->isAddrTainted()) {
         /*
          * here we do ld-st forwarding. But since store address is tainted, we also launch normal load afterwards
          */

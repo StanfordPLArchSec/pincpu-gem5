@@ -68,6 +68,7 @@
 #include "cpu/simple_thread.hh"
 #include "cpu/timebuf.hh"
 #include "enums/SpeculationModel.hh"
+#include "enums/ImplicitChannelMode.hh"
 #include "params/BaseO3CPU.hh"
 #include "sim/process.hh"
 
@@ -609,11 +610,11 @@ class CPU : public BaseCPU
     // whether to apply STT
     bool stt;
 
+    // [STT] whether add implicit flow protection
+    ImplicitChannelMode impChannel;  
+
     /** [STT] Whether to enable bugfixes to restore security of STT. */
     bool sttBugfixes;
-
-    // whether add implicit flow protection
-    bool impChannel;
 
     // whether consider more transmit instructions
     int moreTransmitInsts;

@@ -657,13 +657,6 @@ ROB::address_flow(ThreadID tid, DynInstPtr &inst)
 }
 
 void
-ROB::implicit_flow(ThreadID tid, DynInstPtr &inst, bool &prev_implicit_flow)
-{
-    inst->hasImplicitFlow(prev_implicit_flow);
-    prev_implicit_flow |= (inst->isControl() && inst->hasExplicitFlow());
-}
-
-void
 ROB::compute_taint()
 {
     assert(cpu->stt);
@@ -672,12 +665,8 @@ ROB::compute_taint()
         if (instList[tid].empty())
             continue;
 
-        bool prev_implicit_flow = false;
-
         for (DynInstPtr &inst : instList[tid]) {
             explicit_flow(tid, inst);
-            if (cpu->impChannel)
-                implicit_flow(tid, inst, prev_implicit_flow);
             address_flow(tid, inst);
 
             inst->isArgsTainted(inst->hasExplicitFlow());

@@ -1484,7 +1484,7 @@ IEW::tick()
 
         writebackInsts();
 
-        if (cpu->stt && cpu->moreTransmitInsts)
+        if (cpu->stt)
             wakeUntaintInsts();
 
         // Have the instruction queue try to schedule any ready instructions.

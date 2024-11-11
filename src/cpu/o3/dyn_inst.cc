@@ -336,21 +336,32 @@ bool
 DynInst::readyToIssue_UT() const
 {
     bool ret = status[CanIssue];
-    if (cpu->moreTransmitInsts == 1) {
+
+    if (cpu->impChannel == ImplicitChannelMode::Eager && isControl())
+        ret &= !isArgsTainted();
+
+    switch (cpu->moreTransmitInsts) {
+      case 0:
+        break;
+
+      case 1:
         // consider int div and fp div
         if (opClass() == IntDivOp   ||
             opClass() == FloatDivOp ||
             opClass() == FloatSqrtOp)
             ret = ret && (!instFlags[IsArgsTainted]);
-    }
-    else if (cpu->moreTransmitInsts == 2) {
+        break;
+
+      case 2:
         if (opClass() == IntDivOp ||
             isFloating())
             ret = ret && (!instFlags[IsArgsTainted]);
+        break;
+
+      default:
+        panic("moreTransmitInsts=%d\n", cpu->moreTransmitInsts);
     }
-    else {
-        assert (0);
-    }
+
     return ret;
 }
 

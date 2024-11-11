@@ -315,8 +315,6 @@ class ROB
     /*   they are private because they can only be called by compute_taint()  */
     // if this instr has explicit flow wrt its producers
     void explicit_flow(ThreadID tid, DynInstPtr &inst);
-    // if this instr has explicit flow w.r.t its preceding branches
-    void implicit_flow(ThreadID tid, DynInstPtr &inst, bool &prev_implicit_flow);
     // if this instr has its address tainted(only for memory instructions)
     void address_flow(ThreadID tid, DynInstPtr &inst);
 

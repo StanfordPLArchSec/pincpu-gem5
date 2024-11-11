@@ -791,7 +791,7 @@ Commit::commit()
             commitStatus[tid] != TrapPending &&
             fromIEW->squashedSeqNum[tid] <= youngestSeqNum[tid]) {
 
-            if (cpu->stt && cpu->impChannel && fromIEW->instCausingSquash[tid]->isArgsTainted()) {
+          if (cpu->stt && cpu->impChannel == ImplicitChannelMode::Lazy && fromIEW->instCausingSquash[tid]->isArgsTainted()) {
                 if (fromIEW->mispredictInst[tid]) {
                     DPRINTF(Commit, "[tid:%i]: (Lazy) A branch mispredicInst [sn:%lli,0x%lx] PC %s is made pending.\n",
                             tid,
