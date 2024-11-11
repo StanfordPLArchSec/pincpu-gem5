@@ -199,7 +199,6 @@ class DynInst : public ExecContext, public RefCounted
         IsArgsTainted,
         IsAddrTainted,
         HasExplicitFlow,
-        HasImplicitFlow,
         HasPendingSquash,   // for branch/load, if a squash is postponed due to the tainted dependent operands
         MaxFlags
     };
@@ -419,9 +418,6 @@ class DynInst : public ExecContext, public RefCounted
 
     bool hasExplicitFlow() const { return instFlags[HasExplicitFlow]; }
     void hasExplicitFlow(bool f) { instFlags[HasExplicitFlow] = f; }
-
-    bool hasImplicitFlow() const { return instFlags[HasImplicitFlow]; }
-    void hasImplicitFlow(bool f) { instFlags[HasImplicitFlow] = f; }
 
     bool hasPendingSquash() const { return instFlags[HasPendingSquash]; }
     void hasPendingSquash(bool f) { instFlags[HasPendingSquash] = f; }
