@@ -547,7 +547,9 @@ PhysicalMemory::unserializeStoreUnpaged(CheckpointIn &cp, unsigned int store_id,
               range_size, range.size());
 
     uint64_t curr_size = 0;
+
     uint32_t bytes_read;
+    std::vector<uint8_t> buf;
     while (curr_size < range.size()) {
         bytes_read = gzread(compressed_mem, pmem, chunk_size);
         if (bytes_read == 0)

@@ -154,6 +154,8 @@ class PhysicalMemory : public Serializable
     // Let the user choose if we reserve swap space when calling mmap
     const bool mmapUsingNoReserve;
 
+    const bool pristineZeroPages;
+
     const std::string sharedBackstore;
     uint64_t sharedBackstoreSize;
 
