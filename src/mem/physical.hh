@@ -153,6 +153,8 @@ class PhysicalMemory : public Serializable
     // Let the user choose if we reserve swap space when calling mmap
     const bool mmapUsingNoReserve;
 
+    const bool pristineZeroPages;
+
     const std::string sharedBackstore;
     uint64_t sharedBackstoreSize;
 
@@ -191,7 +193,8 @@ class PhysicalMemory : public Serializable
                    const std::vector<AbstractMemory*>& _memories,
                    bool mmap_using_noreserve,
                    const std::string& shared_backstore,
-                   bool auto_unlink_shared_backstore);
+                   bool auto_unlink_shared_backstore,
+                   bool pristine_zero_pages);
 
     /**
      * Unmap all the backing store we have used.

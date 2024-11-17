@@ -80,8 +80,10 @@ PhysicalMemory::PhysicalMemory(const std::string& _name,
                                const std::vector<AbstractMemory*>& _memories,
                                bool mmap_using_noreserve,
                                const std::string& shared_backstore,
-                               bool auto_unlink_shared_backstore) :
+                               bool auto_unlink_shared_backstore,
+                               bool pristine_zero_pages) : 
     _name(_name), size(0), mmapUsingNoReserve(mmap_using_noreserve),
+    pristineZeroPages(pristine_zero_pages),
     sharedBackstore(shared_backstore), sharedBackstoreSize(0),
     pageSize(sysconf(_SC_PAGE_SIZE))
 {
@@ -463,12 +465,28 @@ PhysicalMemory::unserializeStore(CheckpointIn &cp)
               range_size, range.size());
 
     uint64_t curr_size = 0;
+
     uint32_t bytes_read;
+    std::vector<uint8_t> buf;
+    if (pristineZeroPages)
+        buf.resize(chunk_size);
     while (curr_size < range.size()) {
-        bytes_read = gzread(compressed_mem, pmem, chunk_size);
+        uint8_t *ptr = pristineZeroPages ? buf.data() : pmem;
+        bytes_read = gzread(compressed_mem, ptr, chunk_size);
         if (bytes_read == 0)
             break;
         curr_size += bytes_read;
+        if (pristineZeroPages) {
+            for (size_t page = 0; page < chunk_size; page += 4096) {
+                const auto first = buf.begin() + page;
+                const auto last = first + 4096;
+                const auto is_nonzero = [] (uint8_t byte) -> bool {
+                    return byte != 0;
+                };
+                if (std::any_of(first, last, is_nonzero)) 
+                    std::copy(first, last, pmem + page);
+            }
+        }
         pmem += bytes_read;
     }
 
