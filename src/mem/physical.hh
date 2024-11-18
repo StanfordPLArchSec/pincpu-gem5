@@ -156,6 +156,8 @@ class PhysicalMemory : public Serializable
 
     const bool pristineZeroPages;
 
+    const bool lazyCheckpointMem;
+
     const std::string sharedBackstore;
     uint64_t sharedBackstoreSize;
 

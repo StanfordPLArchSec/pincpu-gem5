@@ -395,6 +395,9 @@ AbstractMemory::access(PacketPtr pkt)
 
     uint8_t *host_addr = toHostAddr(pkt->getAddr());
 
+    if (lazy)
+      lazy->loadRange(host_addr, pkt->getAddr(), pkt->getSize());    
+
     if (pkt->cmd == MemCmd::SwapReq) {
         if (pkt->isAtomicOp()) {
             if (pmemAddr) {
@@ -492,6 +495,9 @@ AbstractMemory::functionalAccess(PacketPtr pkt)
 
     uint8_t *host_addr = toHostAddr(pkt->getAddr());
 
+    if (lazy)
+      lazy->loadRange(host_addr, pkt->getAddr(), pkt->getSize());
+
     if (pkt->isRead()) {
         if (pmemAddr) {
             pkt->setData(host_addr);
@@ -518,6 +524,19 @@ AbstractMemory::functionalAccess(PacketPtr pkt)
               pkt->cmdString());
     }
 }
+
+bool
+LazyMemoryHandle::loaded(Addr addr) const
+{
+    return validChunks.at(addr / chunkSize);
+}
+
+Addr
+LazyMemoryHandle::getChunk(Addr addr) const
+{
+    return roundDown(addr, chunkSize);
+}
+
 
 } // namespace memory
 } // namespace gem5
