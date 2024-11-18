@@ -155,6 +155,8 @@ class PhysicalMemory : public Serializable
 
     const bool pristineZeroPages;
 
+    const bool lazyCheckpointMem;
+
     const std::string sharedBackstore;
     uint64_t sharedBackstoreSize;
 
@@ -194,7 +196,8 @@ class PhysicalMemory : public Serializable
                    bool mmap_using_noreserve,
                    const std::string& shared_backstore,
                    bool auto_unlink_shared_backstore,
-                   bool pristine_zero_pages);
+                   bool pristine_zero_pages,
+                   bool lazy_checkpoint_mem);
 
     /**
      * Unmap all the backing store we have used.

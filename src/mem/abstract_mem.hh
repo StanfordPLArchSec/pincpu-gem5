@@ -46,11 +46,17 @@
 #ifndef __MEM_ABSTRACT_MEMORY_HH__
 #define __MEM_ABSTRACT_MEMORY_HH__
 
+#include <vector>
+#include <memory>
+#include <zlib.h>
+#include <sys/mman.h>
+
 #include "mem/backdoor.hh"
 #include "mem/port.hh"
 #include "params/AbstractMemory.hh"
 #include "sim/clocked_object.hh"
 #include "sim/stats.hh"
+#include "debug/LazyMem.hh"
 
 namespace gem5
 {
@@ -100,6 +106,67 @@ class LockedAddr
     {}
 };
 
+class LazyMemoryHandle
+{
+    const gzFile compressedMem;
+    const size_t chunkSize;
+    std::vector<bool> validChunks;
+
+  public:
+    LazyMemoryHandle(gzFile compressed_mem, size_t mem_size, size_t chunk_size)
+        : compressedMem(compressed_mem), chunkSize(chunk_size)
+    {
+        panic_if((chunk_size & (chunk_size - 1)) != 0, "Chunk size must be a power of 2!\n");
+        panic_if((mem_size & (chunkSize - 1)) != 0, "Chunk size must evenly divide the memory size!\n");
+        validChunks.resize(mem_size / chunkSize, false);
+    }
+
+    void loadRange(uint8_t *pmem, Addr first_addr, Addr size)
+    {
+        const Addr last_addr = first_addr + size;
+        assert(first_addr <= last_addr);
+
+        // Round down/up to nearest chunk.
+        const Addr first_chunk = roundDown(first_addr, chunkSize);
+        const Addr last_chunk = roundUp(last_addr, chunkSize);
+        pmem -= (first_addr - first_chunk);
+
+        // Fill in all the chunks.
+        for (Addr chunk = first_chunk; chunk != last_chunk; chunk += chunkSize)
+            loadChunk(pmem + chunk - first_chunk, chunk);
+    }
+
+    bool loaded(Addr addr) const;
+    Addr getChunk(Addr addr) const;
+
+    void loadChunk(uint8_t *pmem, Addr addr)
+    {
+        assert((addr & (chunkSize - 1)) == 0);
+        if (loaded(addr))
+            return;
+
+        // Chunk is not valid.
+        // Need to load in.
+        DPRINTF(LazyMem, "LazyMem: populating chunk @ %#x\n", addr);
+        DPRINTF(LazyMem, "LazyMem: seeking...");
+        const auto off = gzseek(compressedMem, addr, SEEK_SET);
+        panic_if(off != addr, "gzseek failed!\n");
+        DPRINTFR(LazyMem, "done\n");
+
+        DPRINTF(LazyMem, "LazyMem: reading...");
+#if 0
+        void *map = mmap(pmem, chunkSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED_NOREPLACE, -1, 0);
+        panic_if(map != pmem, "mmap failed!\n");
+#endif
+        const auto size = gzread(compressedMem, pmem, chunkSize);
+        panic_if(size != chunkSize, "gzread failed!\n");
+        DPRINTFR(LazyMem, "done\n");
+
+        // TODO: make setLoaded() routine.
+        validChunks.at(addr / chunkSize) = true;
+    }
+};
+
 /**
  * An abstract memory represents a contiguous block of physical
  * memory, with an associated address range, and also provides basic
@@ -134,6 +201,8 @@ class AbstractMemory : public ClockedObject
 
     // Should collect traffic statistics
     const bool collectStats;
+
+    std::unique_ptr<LazyMemoryHandle> lazy;
 
     std::list<LockedAddr> lockedAddrList;
 
@@ -359,6 +428,12 @@ class AbstractMemory : public ClockedObject
      * @param pkt Packet performing the access
      */
     void functionalAccess(PacketPtr pkt);
+
+    void
+    setLazy(gzFile compressed_mem, size_t mem_size, size_t chunk_size)
+    {
+        lazy = std::make_unique<LazyMemoryHandle>(compressed_mem, mem_size, chunk_size);
+    }
 };
 
 } // namespace memory
