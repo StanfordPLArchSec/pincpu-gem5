@@ -328,6 +328,7 @@ else:
     config_filesystem(system, args)
 
 system.workload = SEWorkload.init_compatible(mp0_path)
+system.lazy_checkpoint_mem = True
 
 if args.wait_gdb:
     system.workload.wait_for_remote_gdb = True
