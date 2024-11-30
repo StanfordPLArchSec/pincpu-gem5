@@ -1,5 +1,7 @@
 /*
- * Copyright 2020 Google Inc.
+ * Copyright (c) 2024 The Board of Trustees of the Leland Stanford
+ * Junior University
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -25,74 +27,70 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "sim/se_workload.hh"
+#include <gtest/gtest.h>
 
-#include "cpu/thread_context.hh"
-#include "params/SEWorkload.hh"
-#include "sim/process.hh"
-#include "sim/system.hh"
+#include "base/free_list.hh"
 
-namespace gem5
+using namespace gem5;
+
+TEST(FreeListTest, Simple)
 {
-
-SEWorkload::SEWorkload(const Params &p, Addr page_shift) :
-    Workload(p), memPools(page_shift)
-{}
-
-void
-SEWorkload::setSystem(System *sys)
-{
-    Workload::setSystem(sys);
-
-    AddrRangeList memories = sys->getPhysMem().getConfAddrRanges();
-    const auto &m5op_range = sys->m5opRange();
-
-    if (m5op_range.valid())
-        memories -= m5op_range;
-
-    memPools.populate(memories);
+    FreeList<int> l;
+    EXPECT_EQ(l.size(), 0);
+    EXPECT_EQ(l.ranges().size(), 0);
+    l.insert(0, 16);
+    EXPECT_EQ(l.size(), 16);
+    EXPECT_EQ(l.ranges().size(), 1);
+    int x;
+    const bool ok = l.allocate(16, x);
+    EXPECT_EQ(ok, true);
+    EXPECT_EQ(l.size(), 0);
+    EXPECT_EQ(l.ranges().size(), 0);
 }
 
-void
-SEWorkload::serialize(CheckpointOut &cp) const
+TEST(FreeListTest, FailedAllocation)
 {
-    memPools.serialize(cp);
+    FreeList<int> l(0, 16);
+    EXPECT_EQ(l.size(), 16);
+    int x;
+    bool ok = l.allocate(17, x);
+    ASSERT_EQ(ok, false);
+    ASSERT_EQ(l.size(), 16);
 }
 
-void
-SEWorkload::unserialize(CheckpointIn &cp)
+TEST(FreeListTest, SucceededAllocation)
 {
-    memPools.unserialize(cp);
+    FreeList<int> l(0, 16);
+    int x;
+    bool ok = l.allocate(8, x);
+    ASSERT_EQ(ok, true);
+    ASSERT_EQ(l.size(), 8);
 }
 
-void
-SEWorkload::syscall(ThreadContext *tc)
+TEST(FreeListTest, MergeLeft)
 {
-    tc->getProcessPtr()->syscall(tc);
+    FreeList<int> l(0, 16);
+    l.insert(16, 8);
+    ASSERT_EQ(l.size(), 24);
+    ASSERT_EQ(l.ranges().size(), 1);
 }
 
-Addr
-SEWorkload::allocPhysPages(int npages, int pool_id)
+TEST(FreeListTest, MergeRight)
 {
-    return memPools.allocPhysPages(npages, pool_id);
+    FreeList<int> l(8, 16);
+    l.insert(0, 8);
+    ASSERT_EQ(l.size(), 24);
+    ASSERT_EQ(l.ranges().size(), 1);
 }
 
-void
-SEWorkload::deallocPhysPage(Addr paddr, int pool_id)
+TEST(FreeListTest, MergeBoth)
 {
-    memPools.deallocPhysPages(paddr, 1, pool_id);
+    FreeList<int> l;
+    l.insert(0, 8);
+    l.insert(16, 8);
+    ASSERT_EQ(l.size(), 16);
+    ASSERT_EQ(l.ranges().size(), 2);
+    l.insert(8, 8);
+    ASSERT_EQ(l.size(), 24);
+    ASSERT_EQ(l.ranges().size(), 1);
 }
-
-Addr
-SEWorkload::memSize(int pool_id) const
-{
-    return memPools.memSize(pool_id);
-}
-
-Addr
-SEWorkload::freeMemSize(int pool_id) const
-{
-    return memPools.freeMemSize(pool_id);
-}
-
-} // namespace gem5
