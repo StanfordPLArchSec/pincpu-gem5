@@ -125,11 +125,11 @@ def define_options(parser):
         help="Recycle latency for ruby controller input buffers",
     )
 
-    parser.add_argument("--enable-prefetch", action="store_true", default=False,
-                      help="Enable Ruby HW Prefetcher")
     protocol = buildEnv["PROTOCOL"]
-    exec(f"from . import {protocol}")
-    eval(f"{protocol}.define_options(parser)")
+    exec(f"""
+from . import {protocol}
+{protocol}.define_options(parser)
+""")
     Network.define_options(parser)
 
 
@@ -215,7 +215,7 @@ def create_topology(controllers, options):
     found in configs/topologies/BaseTopology.py
     This is a wrapper for the legacy topologies.
     """
-    exec(f"import topologies.{options.topology} as Topo")
+    exec(f"import topologies.{options.topology} as Topo", globals())
     topology = eval(f"Topo.{options.topology}(controllers)")
     return topology
 
@@ -249,12 +249,10 @@ def create_system(
         cpus = system.cpu
 
     protocol = buildEnv["PROTOCOL"]
-    exec(f"from . import {protocol}")
+    exec(f"from . import {protocol}", globals())
     try:
         (cpu_sequencers, dir_cntrls, topology) = eval(
-            "%s.create_system(options, full_system, system, dma_ports,\
-                                    bootmem, ruby, cpus)"
-            % protocol
+            f"{protocol}.create_system(options, full_system, system, dma_ports, bootmem, ruby, cpus)"
         )
     except:
         print(f"Error: could not create sytem for ruby protocol {protocol}")
