@@ -211,13 +211,13 @@ ROB::insertInst(const DynInstPtr &inst)
         // find matched physical reg between prev instr and inst
         DynInstPtr prevInst = (*prevInstIt);
         for (int i = 0; i < inst->numSrcRegs(); i++) {
-            if (inst->srcRegIdx(i).index() == 16)   // exclude zero register (zero register cannot be tainted)
+            // The zero register has no producers.
+            if (inst->srcRegIdx(i).is(InvalidRegClass))
                 continue;
-            for (int j = 0; j < prevInst->numDestRegs(); j++){
-                if (inst->renamedSrcIdx(i) == prevInst->renamedDestIdx(j)){
+
+            for (int j = 0; j < prevInst->numDestRegs(); j++)
+                if (inst->renamedSrcIdx(i) == prevInst->renamedDestIdx(j))
                     inst->setArgProducer(i, prevInst);
-                }
-            }
         }
     }
 
