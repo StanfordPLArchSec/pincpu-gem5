@@ -215,7 +215,7 @@ def create_topology(controllers, options):
     found in configs/topologies/BaseTopology.py
     This is a wrapper for the legacy topologies.
     """
-    exec(f"import topologies.{options.topology} as Topo")
+    exec(f"import topologies.{options.topology} as Topo", globals())
     topology = eval(f"Topo.{options.topology}(controllers)")
     return topology
 
@@ -248,11 +248,19 @@ def create_system(
     if cpus is None:
         cpus = system.cpu
 
+<<<<<<< HEAD
     try:
         (cpu_sequencers, dir_cntrls, topology) = import_module(
             f"ruby.{buildEnv['PROTOCOL']}"
         ).create_system(
             options, full_system, system, dma_ports, bootmem, ruby, cpus
+=======
+    protocol = buildEnv["PROTOCOL"]
+    exec(f"from . import {protocol}", globals())
+    try:
+        (cpu_sequencers, dir_cntrls, topology) = eval(
+            f"{protocol}.create_system(options, full_system, system, dma_ports, bootmem, ruby, cpus)"
+>>>>>>> d406e1f434 (fix ruby eval/exec bugs)
         )
     except:
         print(
