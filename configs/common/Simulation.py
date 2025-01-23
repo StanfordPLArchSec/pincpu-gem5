@@ -164,15 +164,16 @@ def findCptDir(options, cptdir, testsys):
             r"cpt\.simpoint_(\d+)_inst_(\d+)"
             + r"_weight_([\d\.e\-]+)_interval_(\d+)_warmup_(\d+)"
         )
-        cpts = []
+        cpts = {}
         for dir in dirs:
             match = expr.match(dir)
             if match:
-                cpts.append(dir)
-        cpts.sort()
+                my_cpt_num = int(match.group(1), 10)
+                cpts[my_cpt_num] = dir
 
         cpt_num = options.checkpoint_restore
-        if cpt_num > len(cpts):
+        # FIXME: Fix this.
+        if cpt_num - 1 not in cpts:
             fatal("Checkpoint %d not found", cpt_num)
         checkpoint_dir = joinpath(cptdir, cpts[cpt_num - 1])
         match = expr.match(cpts[cpt_num - 1])
