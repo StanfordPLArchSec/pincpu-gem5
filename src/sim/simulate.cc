@@ -320,7 +320,7 @@ doSimLoop(EventQueue *eventq)
 
             if (async_exit) {
                 async_exit = false;
-                exitSimLoop("user interrupt received");
+                exitSimLoop("user interrupt received", /*exit_code*/1);
             }
 
             if (async_exception) {
