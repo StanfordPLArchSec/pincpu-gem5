@@ -82,15 +82,8 @@ PhysicalMemory::PhysicalMemory(const std::string& _name,
                                bool mmap_using_noreserve,
                                const std::string& shared_backstore,
                                bool auto_unlink_shared_backstore,
-<<<<<<< HEAD
                                bool serialize_using_pagelist) :
     _name(_name), size(0), mmapUsingNoReserve(mmap_using_noreserve),
-=======
-                               bool pristine_zero_pages,
-                               bool lazy_checkpoint_mem) : 
-    _name(_name), size(0), mmapUsingNoReserve(mmap_using_noreserve),
-    pristineZeroPages(pristine_zero_pages), lazyCheckpointMem(lazy_checkpoint_mem),
->>>>>>> 81e20fc6ed (lazy checkpoint memory)
     sharedBackstore(shared_backstore), sharedBackstoreSize(0),
     pageSize(sysconf(_SC_PAGE_SIZE)),
     serializeUsingPagelist(serialize_using_pagelist)
@@ -547,11 +540,8 @@ PhysicalMemory::unserializeStoreUnpaged(CheckpointIn &cp, unsigned int store_id,
     UNSERIALIZE_SCALAR(range_size);
 
     if (lazyCheckpointMem) {
-        memories[0]->setLazy(compressed_mem, range_size,
-                             32ULL * 1024 * 1024 /*32MiB*/);
-#if 0
-        munmap(pmem, range_size);
-#endif
+        memories[0]->setLazyUnpaged(compressed_mem, range_size,
+                                    32ULL * 1024 * 1024 /*32MiB*/);
         return;
     }
 

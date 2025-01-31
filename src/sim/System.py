@@ -119,6 +119,10 @@ class System(SimObject):
     )
 
     lazy_checkpoint_mem = Param.Bool(False, "Lazy checkpoint memory")
+    use_pagelist = Param.Bool(
+        False,
+        "Use pagelists when checkpointing",
+    )
 
     cache_line_size = Param.Unsigned(64, "Cache line size in bytes")
 

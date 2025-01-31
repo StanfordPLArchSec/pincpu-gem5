@@ -531,12 +531,134 @@ LazyMemoryHandle::loaded(Addr addr) const
     return validChunks.at(addr / chunkSize);
 }
 
+void
+LazyMemoryHandle::setLoaded(Addr addr)
+{
+    assert((addr & (chunkSize - 1)) == 0);
+    validChunks.at(addr / chunkSize) = true;
+}
+
 Addr
 LazyMemoryHandle::getChunk(Addr addr) const
 {
     return roundDown(addr, chunkSize);
 }
 
+LazyMemoryHandle::LazyMemoryHandle(size_t mem_size, size_t chunk_size)
+    : chunkSize(chunk_size)
+{
+    panic_if((chunk_size & (chunk_size - 1)) != 0, "Chunk size must be a power of 2!\n");
+    panic_if((mem_size & (chunkSize - 1)) != 0, "Chunk size must evenly divide the memory size!\n");
+    validChunks.resize(mem_size / chunkSize, false);
+}
+
+void
+LazyMemoryHandle::loadRange(uint8_t *pmem, Addr first_addr, Addr size)
+{
+    const Addr last_addr = first_addr + size;
+    assert(first_addr <= last_addr);
+
+    // Round down/up to nearest chunk.
+    const Addr first_chunk = roundDown(first_addr, chunkSize);
+    const Addr last_chunk = roundUp(last_addr, chunkSize);
+    pmem -= (first_addr - first_chunk);
+
+    // Fill in all the chunks.
+    for (Addr chunk = first_chunk; chunk != last_chunk; chunk += chunkSize) {
+        if (!loaded(chunk)) {
+            loadChunk(pmem + chunk - first_chunk, chunk);
+            setLoaded(chunk);
+        }
+    }
+}
+
+UnpagedLazyMemoryHandle::UnpagedLazyMemoryHandle(gzFile compressed_mem, size_t mem_size, size_t chunk_size)
+    : LazyMemoryHandle(mem_size, chunk_size),
+      compressedMem(compressed_mem)
+{
+}
+
+PagedLazyMemoryHandle::PagedLazyMemoryHandle(gzFile compressed_pages, FILE *file_ids, size_t mem_size, size_t chunk_size)
+    : LazyMemoryHandle(mem_size, chunk_size),
+      compressedPages(compressed_pages),
+      idsFile(file_ids)
+{
+}
+
+void
+UnpagedLazyMemoryHandle::loadChunk(uint8_t *pmem, Addr addr)
+{
+    assert((addr & (chunkSize - 1)) == 0);
+    assert(!loaded(addr));
+
+    // Chunk is not valid.
+    // Need to load in.
+    DPRINTF(LazyMem, "LazyMem: populating chunk @ %#x\n", addr);
+    DPRINTF(LazyMem, "LazyMem: seeking...");
+    const auto off = gzseek(compressedMem, addr, SEEK_SET);
+    panic_if(off != addr, "gzseek failed!\n");
+    DPRINTFR(LazyMem, "done\n");
+
+    DPRINTF(LazyMem, "LazyMem: reading...");
+#if 0
+    void *map = mmap(pmem, chunkSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED_NOREPLACE, -1, 0);
+    panic_if(map != pmem, "mmap failed!\n");
+#endif
+    const auto size = gzread(compressedMem, pmem, chunkSize);
+    panic_if(size != chunkSize, "gzread failed!\n");
+    DPRINTFR(LazyMem, "done\n");
+}
+
+void
+PagedLazyMemoryHandle::loadPage(uint8_t *pmem, Addr addr)
+{
+    // TODO: Can simplify this if we assume that PagedLazyMemoryHandle always gets 4kb-sized pages.
+    DPRINTF(LazyMem, "LazyMem: populating page @ %#x\n", addr);
+    assert((addr & (pageSize - 1)) == 0);
+
+    // How should the cache work?
+    // Maybe we just cache up to a chunk of contiguous memory.
+    
+    // Compute the page id.
+    using PageId = uint32_t;
+    const Addr pageid_offset = addr / pageSize * sizeof(PageId);
+    const int fseek_result = fseek(idsFile, pageid_offset, SEEK_SET);
+    panic_if(fseek_result < 0, "fseek failed\n");
+    PageId pageid;
+    const size_t n = fread(&pageid, sizeof pageid, 1, idsFile);
+    panic_if(n != 1, "fread failed!\n");
+    DPRINTF(LazyMem, "LazyMem: pageid=%d\n", pageid);
+
+    // Read the page.
+    const z_off_t page_off = pageid * pageSize;
+    const auto off = gzseek(compressedPages, page_off, SEEK_SET);
+    panic_if(off != pageid * pageSize, "gzseek failed!\n");
+    const auto bytes = gzread(compressedPages, pmem, pageSize);
+    panic_if(bytes != pageSize, "gzread failed!\n");
+}
+
+void
+PagedLazyMemoryHandle::loadChunk(uint8_t *pmem, Addr addr)
+{
+    DPRINTF(LazyMem, "LazyMem: populating chunk @ %#x\n", addr);
+    const Addr num_pages = chunkSize / pageSize;
+    for (Addr i = 0; i < num_pages; ++i) {
+        const Addr off = i * pageSize;
+        loadPage(pmem + off, addr + off);
+    }
+}
+
+void
+AbstractMemory::setLazyUnpaged(gzFile compressed_mem, size_t mem_size, size_t chunk_size)
+{
+    lazy = std::make_unique<UnpagedLazyMemoryHandle>(compressed_mem, mem_size, chunk_size);
+}
+
+void
+AbstractMemory::setLazyPaged(gzFile compressed_pages, FILE *file_ids, size_t mem_size, size_t chunk_size)
+{
+    lazy = std::make_unique<PagedLazyMemoryHandle>(compressed_pages, file_ids, mem_size, chunk_size);
+}
 
 } // namespace memory
 } // namespace gem5
