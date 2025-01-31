@@ -108,63 +108,48 @@ class LockedAddr
 
 class LazyMemoryHandle
 {
-    const gzFile compressedMem;
-    const size_t chunkSize;
+  private:
     std::vector<bool> validChunks;
 
+  protected:
+    const size_t chunkSize;
+
   public:
-    LazyMemoryHandle(gzFile compressed_mem, size_t mem_size, size_t chunk_size)
-        : compressedMem(compressed_mem), chunkSize(chunk_size)
-    {
-        panic_if((chunk_size & (chunk_size - 1)) != 0, "Chunk size must be a power of 2!\n");
-        panic_if((mem_size & (chunkSize - 1)) != 0, "Chunk size must evenly divide the memory size!\n");
-        validChunks.resize(mem_size / chunkSize, false);
-    }
+    LazyMemoryHandle(size_t mem_size, size_t chunk_size);
 
-    void loadRange(uint8_t *pmem, Addr first_addr, Addr size)
-    {
-        const Addr last_addr = first_addr + size;
-        assert(first_addr <= last_addr);
-
-        // Round down/up to nearest chunk.
-        const Addr first_chunk = roundDown(first_addr, chunkSize);
-        const Addr last_chunk = roundUp(last_addr, chunkSize);
-        pmem -= (first_addr - first_chunk);
-
-        // Fill in all the chunks.
-        for (Addr chunk = first_chunk; chunk != last_chunk; chunk += chunkSize)
-            loadChunk(pmem + chunk - first_chunk, chunk);
-    }
-
+    void loadRange(uint8_t *pmem, Addr first_addr, Addr size);
     bool loaded(Addr addr) const;
+    void setLoaded(Addr addr);
     Addr getChunk(Addr addr) const;
 
-    void loadChunk(uint8_t *pmem, Addr addr)
-    {
-        assert((addr & (chunkSize - 1)) == 0);
-        if (loaded(addr))
-            return;
+    virtual void loadChunk(uint8_t *pmem, Addr addr) = 0;
+};
 
-        // Chunk is not valid.
-        // Need to load in.
-        DPRINTF(LazyMem, "LazyMem: populating chunk @ %#x\n", addr);
-        DPRINTF(LazyMem, "LazyMem: seeking...");
-        const auto off = gzseek(compressedMem, addr, SEEK_SET);
-        panic_if(off != addr, "gzseek failed!\n");
-        DPRINTFR(LazyMem, "done\n");
+class UnpagedLazyMemoryHandle : public LazyMemoryHandle
+{
+    const gzFile compressedMem;
+    
+  public:
+    UnpagedLazyMemoryHandle(gzFile compressed_mem, size_t mem_size, size_t chunk_size);
 
-        DPRINTF(LazyMem, "LazyMem: reading...");
-#if 0
-        void *map = mmap(pmem, chunkSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED_NOREPLACE, -1, 0);
-        panic_if(map != pmem, "mmap failed!\n");
-#endif
-        const auto size = gzread(compressedMem, pmem, chunkSize);
-        panic_if(size != chunkSize, "gzread failed!\n");
-        DPRINTFR(LazyMem, "done\n");
+    void loadChunk(uint8_t *pmem, Addr addr) override;
+};
 
-        // TODO: make setLoaded() routine.
-        validChunks.at(addr / chunkSize) = true;
-    }
+class PagedLazyMemoryHandle : public LazyMemoryHandle
+{
+    using PageId = uint32_t;
+    const size_t pageSize = 4096;
+    const gzFile compressedPages;
+    FILE *idsFile;
+
+  public:
+    PagedLazyMemoryHandle(gzFile compressed_pages, FILE *file_ids, size_t mem_size, size_t chunk_size);
+
+    void loadChunk(uint8_t *pmem, Addr addr) override;
+
+  private:
+    void loadPage(uint8_t *pmem, Addr addr);
+    bool loadPageCached(uint8_t *pmem, Addr addr);
 };
 
 /**
@@ -429,11 +414,8 @@ class AbstractMemory : public ClockedObject
      */
     void functionalAccess(PacketPtr pkt);
 
-    void
-    setLazy(gzFile compressed_mem, size_t mem_size, size_t chunk_size)
-    {
-        lazy = std::make_unique<LazyMemoryHandle>(compressed_mem, mem_size, chunk_size);
-    }
+    void setLazyUnpaged(gzFile compressed_mem, size_t mem_size, size_t chunk_size);
+    void setLazyPaged(gzFile compressed_pages, FILE *file_ids, size_t mem_size, size_t chunk_size);
 };
 
 } // namespace memory
