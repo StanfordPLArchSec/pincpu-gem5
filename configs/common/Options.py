@@ -694,8 +694,8 @@ def addCommonOptions(parser, default_isa: Optional[ISA] = None):
     # [TPE, STT, SPT] Options
     parser.add_argument(
         "--speculation-model",
-        default="Futuristic",
         choices=["None", "Ctrl", "CtrlSt", "Futuristic", "AtRet"],
+        required=True,
         help="[TPE, STT, SPT] Speculation model",
     )
 
