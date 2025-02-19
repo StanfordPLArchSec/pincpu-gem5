@@ -81,11 +81,13 @@ Options.addSEOptions(parser)
 if "--ruby" in sys.argv:
     Ruby.define_options(parser)
 
+parser.add_argument("--chdir")
+
 args = parser.parse_args()
 
 process = Process(pid=100)
 process.executable = args.cmd
-process.cwd = os.getcwd()
+process.cwd = os.getcwd() if args.chdir is None else args.chdir
 process.gid = os.getgid()
 process.cmd = [args.cmd] + args.options.split()
 if args.input:
