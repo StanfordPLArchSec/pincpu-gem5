@@ -92,4 +92,11 @@ StaticInst::advancePC(ThreadContext *tc) const
     tc->pcState(*pc);
 }
 
+bool
+StaticInst::srcTransmitted(int src_idx) const
+{
+    assert(!isMemRef());
+    return isControl();
+}
+
 } // namespace gem5

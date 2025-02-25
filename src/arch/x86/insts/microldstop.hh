@@ -74,6 +74,21 @@ class MemOp : public X86MicroopBase
             foldABit((addressSize == 1 && !mach_inst.rex.present) ? 1 << 6 : 0)
     {}
 
+    bool
+    srcTransmittedImpl(int src_idx, RegIndex reg_base, RegIndex reg_index) const
+    {
+        if (!(isLoad() || isStore()))
+            return false;
+        const RegId& reg = srcRegIdx(src_idx);
+        if (!reg.is(IntRegClass))
+            return false;
+        if (reg.index() == reg_base)
+            return true;
+        if (reg.index() == reg_index)
+            return true;
+        return false;
+    }
+
   public:
     const uint8_t dataSize;
     const uint8_t addressSize;
@@ -97,6 +112,12 @@ class LdStOp : public InstOperands<MemOp, FoldedDataOp, AddrOp>
             { _data, { _scale, _index, _base, _disp, _segment } },
             data_size, address_size, mem_flags | _segment.index)
     {}
+
+    bool
+    srcTransmitted(int src_idx) const override
+    {
+        return srcTransmittedImpl(src_idx, base, index);
+    }
 };
 
 /**
@@ -116,6 +137,12 @@ class LdStFpOp : public InstOperands<MemOp, FloatDataOp, AddrOp>
             { _data, { _scale, _index, _base, _disp, _segment } },
             data_size, address_size, mem_flags | _segment.index)
     {}
+
+    bool
+    srcTransmitted(int src_idx) const override
+    {
+        return srcTransmittedImpl(src_idx, base, index);
+    }
 };
 
 /**
@@ -134,6 +161,12 @@ class MemNoDataOp : public InstOperands<MemOp, AddrOp>
             { { _scale, _index, _base, _disp, _segment } },
             data_size, address_size, mem_flags | _segment.index)
     {}
+
+    bool
+    srcTransmitted(int src_idx) const override
+    {
+        return srcTransmittedImpl(src_idx, base, index);
+    }
 };
 
 /**
@@ -156,6 +189,12 @@ class LdStSplitOp :
             { data_low, data_hi, { _scale, _index, _base, _disp, _segment } },
             data_size, address_size, mem_flags | _segment.index)
     {}
+
+    bool
+    srcTransmitted(int src_idx) const override
+    {
+        return srcTransmittedImpl(src_idx, base, index);
+    }
 };
 
 } // namespace X86ISA
