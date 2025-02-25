@@ -308,7 +308,6 @@ class Commit
     /** Process the squash signal from IEW stage if a squash needs to be handled at current cycle.
      *  ifFromIEW=true indicates the current squash signal is from IEW stage
      *  ifFromIEW=false indicates the current squash signal is from pending mispredicted instr(must enable STT) */
-    void handleSquashSignalFromIEW(ThreadID tid);
     void handleSquashSignalFromROB(ThreadID tid, DynInstPtr &pendingMispInst);
 
 

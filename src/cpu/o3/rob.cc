@@ -47,6 +47,7 @@
 #include "cpu/o3/limits.hh"
 #include "debug/Fetch.hh"
 #include "debug/ROB.hh"
+#include "debug/TransmitterStallsVerbose.hh"
 #include "params/BaseO3CPU.hh"
 
 namespace gem5
@@ -619,40 +620,24 @@ ROB::explicit_flow(ThreadID tid, DynInstPtr &inst)
 void
 ROB::address_flow(ThreadID tid, DynInstPtr &inst)
 {
-    if (inst->isMemRef()) {
-        if (inst->isStore()) {
-            for (int i = 1; i < inst->numSrcRegs(); i++){
-                if (inst->getArgProducer(i)) {
-                    DynInstPtr argProducer = inst->getArgProducer(i);
-                    assert(argProducer->threadNumber == tid);
-                    if (argProducer->isDestTainted()
-                        && !argProducer->isCommitted()) {
-                        inst->isAddrTainted(true);
-                        return;
-                    }
-                }
-            }
-        }
-        else if (inst->isLoad()) {
-            for (int i = 0; i < inst->numSrcRegs(); i++){
-                if (inst->getArgProducer(i)) {
-                    DynInstPtr argProducer = inst->getArgProducer(i);
-                    assert(argProducer->threadNumber == tid);
-                    if (argProducer->isDestTainted()
-                        && !argProducer->isCommitted()) {
-                        inst->isAddrTainted(true);
-                        return;
-                    }
-                }
-            }
-        }
-        else {
-            panic("Unidentified instruction.\n");
-        }
+    inst->isAddrTainted(false);
 
-        inst->isAddrTainted(false);
-    } else {
-        inst->isAddrTainted(false);
+    if (!inst->isMemRef())
+        return;
+
+    for (int i = 0; i < inst->numSrcRegs(); ++i) {
+        if (inst->staticInst->srcTransmitted(i)) {
+            if (const DynInstPtr &producer = inst->getArgProducer(i)) {
+                assert(producer->threadNumber == tid);
+                if (producer->isDestTainted() && !producer->isCommitted()) {
+                    inst->isAddrTainted(true);
+                    DPRINTFR(TransmitterStallsVerbose, "tainting address of memref %#x with tainted producer %#x of %s\n",
+                             inst->pcState().instAddr(), producer->pcState().instAddr(),
+                             inst->srcRegIdx(i));
+                    return;
+                }
+            }
+        }
     }
 }
 

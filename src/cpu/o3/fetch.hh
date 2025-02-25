@@ -579,46 +579,6 @@ class Fetch
         /** Rate of how often fetch was idle. */
         statistics::Formula idleRate;
     } fetchStats;
-
-    /*** [Jiyong, STT] for delay branch predictor squash **/
-  public:
-    class DelayedSquashReq 
-    {
-      public:
-        /** constructs an empty Req **/
-        DelayedSquashReq();
-
-        DynInstPtr      misp_inst;
-
-        InstSeqNum      doneSeqNum = 0;
-
-        std::unique_ptr<PCStateBase> pc;
-
-        bool            branchTaken = false;
-    };
-
-    // struct used to delay squash
-    class DelayedSquashReqList 
-    {
-        public:
-
-        // queues for delayed squashes
-        std::list<DelayedSquashReq> delayedSquashes[MaxThreads];
-
-        // push a element
-        void insert(ThreadID tid, DelayedSquashReq &&req);
-
-        // clean squashed squashes
-        void squashReqs(ThreadID tid, InstSeqNum seqNum);
-
-        bool empty(ThreadID tid)
-        {
-            return delayedSquashes[tid].empty();
-        }
-    };
-
-    DelayedSquashReqList delayedSquashReqList;
-
 };
 
 } // namespace o3

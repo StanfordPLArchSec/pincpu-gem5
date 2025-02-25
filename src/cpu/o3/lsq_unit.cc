@@ -1463,9 +1463,6 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
                 int shift_amt = request->mainReq()->getVaddr() -
                     store_it->instruction()->effAddr;
 
-                if (readCheckForwardSTT(store_it, load_inst, request, shift_amt))
-                    break;
-
                 // Allocate memory if this is the first time a load is issued.
                 if (!load_inst->memData) {
                     load_inst->memData =
@@ -1668,9 +1665,6 @@ LSQUnit::updateVisibleState()
     //iterate all the loads and update its fencedelay state accordingly
     for (const LQEntry &load_ent : loadQueue) {
         const DynInstPtr &inst = load_ent.instruction();
-        // Sanity check: STT previously checked isArgsTainted(), not isAddrTainted().
-        // No clue why.
-        assert(inst->isAddrTainted() == inst->isArgsTainted());
         inst->fenceDelay(cpu->stt && inst->isAddrTainted());
     }
 
@@ -1681,53 +1675,6 @@ LSQUnit::updateVisibleState()
             inst->fenceDelay(cpu->stt && inst->isAddrTainted());
         }
     }
-}
-
-bool
-LSQUnit::readCheckForwardSTT(SQIterator store_it, const DynInstPtr& load_inst, LSQRequest *req, int shift_amt)
-{
-    const DynInstPtr &store_inst = store_it->instruction();
-
-    assert(!load_inst->isAddrTainted()); // If the load address is tainted, we're SCREWED.
-
-    // If we've enabled bugfixes, a tainted store never should've entered the SQ in the first place.
-    panic_if(cpu->sttBugfixes && store_inst->isAddrTainted() && store_inst->translationStarted(),
-             "%s called on store with tainted address: %s\n",
-             __func__, store_inst->staticInst->disassemble(0));
-
-    // we DO Forwarding
-    /***** [Jiyong, STT] if store addr is tainted, load addr is untainted, we still needs to issue a normal load without writeback" **/
-    if (cpu->stt && cpu->impChannel != ImplicitChannelMode::None && store_inst->isAddrTainted() && !load_inst->isAddrTainted()) {
-        /*
-         * here we do ld-st forwarding. But since store address is tainted, we also launch normal load afterwards
-         */
-
-        // Allocate memory if this is the first time a load is issued.
-        if (!load_inst->stFwdData) {
-            load_inst->stFwdData = new uint8_t[req->mainReq()->getSize()];
-            load_inst->stFwdDataSize = req->mainReq()->getSize();
-        }
-        if (store_it->isAllZeros())
-            memset(load_inst->stFwdData, 0, req->mainReq()->getSize());
-        else
-            memcpy(load_inst->stFwdData,
-		   store_it->data() + shift_amt, req->mainReq()->getSize());
-
-        DPRINTF(LSQUnit, "Forwarding from store idx %i to load to "
-                "addr %#x\n", store_it._idx, req->mainReq()->getVaddr());
-        DPRINTF(LSQUnit, "Still need dummy load to hide tainted address of store");
-
-        // Jiyong, STT: writeback is deferred to GETS writeback
-
-        // We'll say this has a 1 cycle load-store forwarding latency
-        // for now.
-        // @todo: Need to make this a parameter.
-        load_inst->alreadyForwarded = true;
-
-        return true;
-    }
-
-    return false;
 }
 
 } // namespace o3
