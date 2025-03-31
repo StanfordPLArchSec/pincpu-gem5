@@ -50,6 +50,7 @@ class Process(SimObject):
                             table in an architecture-specific format",
     )
     kvmInSE = Param.Bool("false", "initialize the process for KvmCPU in SE")
+    pinInSE = Param.Bool(False, "Intel Pin in SE")
     maxStackSize = Param.MemorySize("64MiB", "maximum size of the stack")
     zeroPages = Param.Bool(
         True,

@@ -1,0 +1,1 @@
+[ ] Add a method for dumping plugin state. This will be useful for bbhist, arch. extensions, etc.

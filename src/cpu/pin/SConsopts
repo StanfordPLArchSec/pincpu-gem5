@@ -1,0 +1,27 @@
+import os
+
+Import('*')
+
+from gem5_scons import warning
+
+import gem5_scons
+
+gem5_root = Dir('#').srcnode().abspath
+
+main['CONF'].setdefault('PIN_DIR', os.path.join(gem5_root, 'ext/pin'))
+
+with gem5_scons.Configure(main) as conf:
+    # Check if we should enable Pin.
+    main['CONF']['HAVE_PIN'] = False
+
+    pin_dir = main['CONF']['PIN_DIR']
+    pin_exe = os.path.join(pin_dir, "pin")
+
+    if len(pin_dir) == 0:
+        pass
+    elif not os.path.isdir(pin_dir):
+        warning(f"Pin directory does not exist: {pin_dir}")
+    elif not os.path.isfile(pin_exe):
+        warning(f"Pin executable does not exist at {pin_exe}")
+    else:
+        conf.env['CONF']['HAVE_PIN'] = True

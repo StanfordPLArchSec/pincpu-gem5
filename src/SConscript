@@ -426,6 +426,10 @@ class Executable(TopLevelBase):
 class Gem5(Executable):
     '''Base class for the main gem5 executable.'''
 
+    def __init__(self, target, *srcs_and_filts, deps = []):
+        super().__init__(target, *srcs_and_filts)
+        self.deps = deps
+
     def declare(self, env):
         objs = self.srcs_to_objs(env, self.sources(env))
 
@@ -433,7 +437,9 @@ class Gem5(Executable):
         env.Depends(date_obj, objs)
         objs.append(date_obj)
 
-        return super().declare(env, objs)
+        target = super().declare(env, objs)
+        for dep in self.deps:
+            env.Depends(target, dep)
 
 
 class GTest(Executable):
@@ -553,6 +559,8 @@ for extra_dir in extras_dir_list:
 #
 # Walk the tree and execute all SConscripts in subdirectories
 #
+gem5_deps = []
+Export('gem5_deps')
 
 here = Dir('.').srcnode().abspath
 for root, dirs, files in os.walk(base_dir, topdown=True):
@@ -618,6 +626,7 @@ def makeDefinesPyFile(target, source, env):
     code.write(target[0].abspath)
 
 # Generate a file with all of the compile options in it
+build_env = list(env['CONF'].items())
 env.Command('python/m5/defines.py', ToValue(dict(build_env)),
             MakeAction(makeDefinesPyFile, Transform("DEFINES", 0)))
 PySource('m5', 'python/m5/defines.py')
@@ -725,8 +734,7 @@ if GetOption('without_python'):
 StaticLib(lib_name, lib_filter)
 SharedLib(lib_name, lib_filter)
 
-Gem5('gem5', with_any_tags('gem5 lib', 'main'))
-
+gem5 = Gem5('gem5', with_any_tags('gem5 lib', 'main'), deps = gem5_deps)
 
 # Function to create a new build environment as clone of current
 # environment 'env' with modified object suffix and optional stripped

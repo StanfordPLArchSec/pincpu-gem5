@@ -184,6 +184,7 @@ class Process : public SimObject
     bool useArchPT;
     // running KVM requires special initialization
     bool kvmInSE;
+    bool pinInSE;
     // flag for using the process as a thread which shares page tables
     bool useForClone;
 

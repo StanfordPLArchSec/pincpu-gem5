@@ -147,6 +147,19 @@ EmuLinux::event(ThreadContext *tc)
             pageFault(tc);
             return;
         }
+    } else if (process->pinInSE) {
+        switch (tc->simcall_info.type) {
+          case ThreadContext::SimcallInfo::SYSCALL:
+            syscall(tc);
+            return;
+
+          case ThreadContext::SimcallInfo::PAGEFAULT:
+            panic("Not implemented\n");
+
+          case ThreadContext::SimcallInfo::INVALID:
+          default:
+            panic("Got bad simcall (%i)\n", tc->simcall_info.type);
+        }
     }
     warn("Unexpected workload event at pc %#x.", pc);
 }

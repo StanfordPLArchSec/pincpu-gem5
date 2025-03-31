@@ -233,6 +233,17 @@ class ThreadContext : public PCEventScope
                                      HtmFailureFaultCause cause) = 0;
     virtual BaseHTMCheckpointPtr& getHtmCheckpointPtr() = 0;
     virtual void setHtmCheckpointPtr(BaseHTMCheckpointPtr cpt) = 0;
+
+    struct SimcallInfo {
+        enum {
+            SYSCALL = 0,
+            PAGEFAULT = 1,
+            INVALID = -1,
+        } type;
+        union {
+            uint64_t vaddr; // SIMCALL_PAGEFAULT
+        };
+    } simcall_info;
 };
 
 /** @{ */

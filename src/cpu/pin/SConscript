@@ -1,0 +1,131 @@
+# -*- mode:python -*-
+
+import os
+
+Import('*')
+
+if env['CONF']['USE_PIN']:
+    env.TagImplies('pin', 'gem5 lib')
+
+if env['CONF']['BUILD_ISA']:
+    SimObject('BasePinCPU.py', sim_objects=['BasePinCPU'], tags='pin')
+    Source('cpu.cc', tags='pin')
+    Source('message.cc', tags='pin')
+    DebugFlag('Pin', tags='pin')
+
+    # Build the kernel.
+    kernel_linker_script = os.path.join(Dir('.').srcnode().abspath, 'tools', 'kernel.ld')
+    # FIXME: Should just create a new environment from scratch, instead.
+    kernel_env = env.Clone()
+    # FIXME: Re-enable -O3 optimizations.
+    kernel_env['CFLAGS'] = ['-ffreestanding', '-fPIC', '-Wall', '-pedantic', '-O1', '-fcf-protection=none']
+    kernel_env.Append(CPPPATH = [os.path.join(Dir('.').srcnode().abspath, 'tools')])
+    kernel_env['LINKFLAGS'] = ['-nostdlib', '-Wl,-e,main', '-static', '-T', kernel_linker_script, '-Wl,--no-relax']
+    kernel_env['LIBS'] = []
+    kernel_exe = kernel_env.Program(target='kernel', source=['tools/kernel.c', 'tools/printf.c',
+                                                             'tools/syscall.c', 'tools/libc.c', 'tools/ops.c'],
+                                    tags = 'pin')
+    kernel_env.Depends(kernel_exe, kernel_linker_script)
+
+    # Build the client.
+    # TODO: Extract this to ext/pin.
+
+    pin_dir = env['CONF']['PIN_DIR']
+    client_system_include_dirs = [
+        'extras/cxx/include',
+        'extras/crt/include',
+        'extras/crt/include/arch-x86_64',
+        'extras/crt/include/kernel/uapi',
+        'extras/crt/include/kernel/uapi/asm-x86',
+    ]
+    client_include_dirs = [
+        'source/include/pin',
+        'source/include/pin/gen',
+        'extras/components/include',
+        'extras/xed-intel64/include/xed',
+    ]
+    client_cxxflags = [
+        # FIXME: Re-enable both of these.
+        # -Wall
+        '-Wno-cast-function-type',
+        '-Wno-unknown-pragmas',
+        '-fno-stack-protector',
+        '-fno-exceptions',
+        '-funwind-tables',
+        '-fasynchronous-unwind-tables',
+        '-fno-rtti',
+        '-fPIC',
+        '-fabi-version=2',
+        '-faligned-new',
+        '-O3',
+        '-fomit-frame-pointer',
+        '-fno-strict-aliasing',
+        '-Wno-dangling-pointer',
+        '-g',
+    ]
+    for sysinc in client_system_include_dirs:
+        client_cxxflags.extend(['-isystem', os.path.join(pin_dir, sysinc)])
+
+    client_env = env.Clone()
+    # TODO: Try extending?
+    client_env.Append(CXXFLAGS = client_cxxflags)
+    client_env.Append(CPPPATH = [os.path.join(pin_dir, inc) for inc in client_include_dirs])
+    client_env.Append(CPPDEFINES = {
+        'PIN_CRT': 1,
+        'TARGET_IA32E': None,
+        'HOST_IA32E': None,
+        'TARGET_LINUX': None,
+    })
+    client_env['LINKFLAGS'] = [
+        '-Wl,--hash-style=sysv',
+        '-Wl,-Bsymbolic',
+        f'-Wl,--version-script={pin_dir}/source/include/pin/pintool.ver',
+        '-fabi-version=2',
+        '-nostdlib',
+        '-fPIC',
+        os.path.join(pin_dir, 'intel64/runtime/pincrt/crtbeginS.o'),
+        os.path.join(pin_dir, 'intel64/runtime/pincrt/crtendS.o'),
+    ]
+    client_libpaths = ['intel64/runtime/pincrt', 'intel64/lib', 'intel64/lib-ext', 'extras/xed-intel64/lib']
+    client_env['LIBPATH'] = [os.path.join(pin_dir, libdir) for libdir in client_libpaths]
+    client_env['LIBS'] = [
+        'pin',
+        'xed',
+        'pindwarf',
+        'dl-dynamic',
+        'c++',
+        'c++abi',
+        'm-dynamic',
+        'c-dynamic',
+        'unwind-dynamic',
+    ]
+
+    client_env.SharedLibrary(
+        target = 'count',
+        source = ['tools/Count.cpp'],
+        tags = 'pin',
+    )
+
+    client_pintool = client_env.SharedLibrary(
+        target = 'client',
+        source = [
+            'tools/client.cc',
+            'tools/slev.cc',
+            'tools/progmark2inst.cc',
+            'tools/plugin.cc',
+            'tools/instcount.cc',
+            'tools/waypoints.cc',
+            'tools/waypointcount.cc',
+            'tools/breakpoint.cc',
+            'tools/bbhist.cc',
+            'tools/sysbreak.cc',
+            'tools/pchistory.cc',
+        ],
+        tags = 'pin',
+    )
+
+    gem5_deps.append(kernel_exe)
+    gem5_deps.append(client_pintool)
+
+    env['CONF']['PIN_KERNEL'] = os.path.join(Dir('.').abspath, 'kernel')
+    env['CONF']['PIN_CLIENT'] = os.path.join(Dir('.').abspath, 'libclient.so')

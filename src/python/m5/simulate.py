@@ -180,6 +180,23 @@ def instantiate(ckpt_dir=None):
 
 need_startup = True
 
+def startup():
+    global need_startup
+
+    root = objects.Root.getInstance()
+    for obj in root.descendants():
+        obj.startup()
+    need_startup = False
+
+    # Python exit handlers happen in reverse order.
+    # We want to dump stats last.
+    atexit.register(stats.dump)
+
+    # register our C++ exit callback function with Python
+    atexit.register(_m5.core.doExitCleanup)
+
+    # Reset to put the stats in a consistent state.
+    stats.reset()
 
 def simulate(*args, **kwargs):
     global need_startup
@@ -189,20 +206,7 @@ def simulate(*args, **kwargs):
         fatal("m5.instantiate() must be called before m5.simulate().")
 
     if need_startup:
-        root = objects.Root.getInstance()
-        for obj in root.descendants():
-            obj.startup()
-        need_startup = False
-
-        # Python exit handlers happen in reverse order.
-        # We want to dump stats last.
-        atexit.register(stats.dump)
-
-        # register our C++ exit callback function with Python
-        atexit.register(_m5.core.doExitCleanup)
-
-        # Reset to put the stats in a consistent state.
-        stats.reset()
+        startup()
 
     if _drain_manager.isDrained():
         _drain_manager.resume()

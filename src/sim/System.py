@@ -112,6 +112,10 @@ class System(SimObject):
         "shmem segment file upon destruction. This is used only if "
         "shared_backstore is non-empty.",
     )
+    anonymous_shared_backstore = Param.Bool(
+        True,
+        "Shared backstore should be anonymously created using memfd_create(2)",
+    )
 
     cache_line_size = Param.Unsigned(64, "Cache line size in bytes")
 

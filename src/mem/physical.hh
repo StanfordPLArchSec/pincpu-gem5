@@ -154,6 +154,7 @@ class PhysicalMemory : public Serializable
     const bool mmapUsingNoReserve;
 
     const std::string sharedBackstore;
+    bool anonymousSharedBackstore; // Anonymous shared backing store. Useful primarily for PinCPU.
     uint64_t sharedBackstoreSize;
 
     long pageSize;
@@ -191,7 +192,8 @@ class PhysicalMemory : public Serializable
                    const std::vector<AbstractMemory*>& _memories,
                    bool mmap_using_noreserve,
                    const std::string& shared_backstore,
-                   bool auto_unlink_shared_backstore);
+                   bool auto_unlink_shared_backstore,
+                   bool anonymous_shared_backstore);
 
     /**
      * Unmap all the backing store we have used.

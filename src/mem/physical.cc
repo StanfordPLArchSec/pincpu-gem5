@@ -80,9 +80,12 @@ PhysicalMemory::PhysicalMemory(const std::string& _name,
                                const std::vector<AbstractMemory*>& _memories,
                                bool mmap_using_noreserve,
                                const std::string& shared_backstore,
-                               bool auto_unlink_shared_backstore) :
+                               bool auto_unlink_shared_backstore,
+                               bool anonymous_shared_backstore) :
     _name(_name), size(0), mmapUsingNoReserve(mmap_using_noreserve),
-    sharedBackstore(shared_backstore), sharedBackstoreSize(0),
+    sharedBackstore(shared_backstore),
+    anonymousSharedBackstore(anonymous_shared_backstore),
+    sharedBackstoreSize(0),
     pageSize(sysconf(_SC_PAGE_SIZE))
 {
     // Register cleanup callback if requested.
@@ -224,7 +227,11 @@ PhysicalMemory::createBackingStore(
         sharedBackstoreSize += roundUp(range.size(), pageSize);
         DPRINTF(AddrRanges, "Sharing backing store as %s at offset %llu\n",
                 sharedBackstore.c_str(), (uint64_t)map_offset);
-        shm_fd = shm_open(sharedBackstore.c_str(), O_CREAT | O_RDWR, 0666);
+        if (anonymousSharedBackstore) {
+            shm_fd = memfd_create(sharedBackstore.c_str(), 0);
+        } else {
+            shm_fd = shm_open(sharedBackstore.c_str(), O_CREAT | O_RDWR, 0666);
+        }
         if (shm_fd == -1)
                panic("Shared memory failed");
         if (ftruncate(shm_fd, sharedBackstoreSize))
@@ -267,6 +274,10 @@ PhysicalMemory::~PhysicalMemory()
     // unmap the backing store
     for (auto& s : backingStore)
         munmap((char*)s.pmem, s.range.size());
+
+    // Remove the backing store if mapped.
+    if (!sharedBackstore.empty())
+        shm_unlink(sharedBackstore.c_str());
 }
 
 bool

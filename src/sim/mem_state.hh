@@ -290,6 +290,28 @@ class MemState : public Serializable
      * support this or the unmapping method must be changed.
      */
     std::list<VMA> _vmaList;
+
+  public:
+    // HACK: PinCPU:
+    // We need to know when pages change.
+    // So we need to track which pages have been unmapped.
+    // Don't need to track which pages have been mapped,
+    // since we lazily handle that with segfaults in Pin.
+    std::vector<Addr> unmapped;
+
+    VMA *
+    getVMA(Addr vaddr)
+    {
+        auto vma_it = std::find_if(_vmaList.begin(), _vmaList.end(),
+                                   [vaddr] (const VMA& vma) -> bool {
+                                       return vma.contains(vaddr);
+                                   });
+        if (vma_it == _vmaList.end()) {
+            return nullptr;
+        } else {
+            return &*vma_it;
+        }
+    }
 };
 
 } // namespace gem5
