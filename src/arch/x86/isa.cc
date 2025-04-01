@@ -70,6 +70,15 @@ ISA::updateHandyM5Reg(Efer efer, CR0 cr0,
             m5reg.submode = RealMode;
         }
     }
+    bool in_sandbox = regVal[misc_reg::HFI_INSIDE_SANDBOX] != 0;
+    if (in_sandbox) {
+        if (m5reg.cpl != csAttr.dpl) {
+            std::cout << "!!!!!Privilege change while inside the hfi sandbox. "
+                << "Ideally, this would call the hfi exit handler, but there is no easy way to set this up on gem5."
+                << "So we just crash for now. In a real implementation, this should ideally invoke the sandbox handler.";
+            abort();
+        }
+    }
     m5reg.cpl = csAttr.dpl;
     m5reg.paging = cr0.pg;
     m5reg.prot = cr0.pe;

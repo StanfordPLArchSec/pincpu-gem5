@@ -141,6 +141,12 @@ class ExecContext
         panic("ExecContext::initiateMemRead() should be overridden\n");
     }
 
+
+    virtual Fault checkHFI(Addr& EA, bool is_store, uint64_t scale, uint64_t index, uint64_t base, uint64_t displacement)
+    {
+        panic("ExecContext::checkHFI(Addr&, bool, scale, index, base, displacement) should be overridden\n");
+    }
+
     /**
      * Initiate a memory management command with no valid address.
      * Currently, these instructions need to bypass squashing in the O3 model

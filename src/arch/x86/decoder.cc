@@ -64,6 +64,13 @@ Decoder::doResetState()
     emi.modRM = 0;
     emi.sib = 0;
 
+    emi.unrestricted = 0;
+    emi.hfi_structured = 0;
+    emi.hfi_structured1 = 0;
+    emi.hfi_structured2 = 0;
+    emi.hfi_structured3 = 0;
+    emi.hfi_structured4 = 0;
+
     return PrefixState;
 }
 
@@ -192,6 +199,30 @@ Decoder::doPrefixState(uint8_t nextByte)
         DPRINTF(Decoder, "Found VEX three-byte prefix %#x.\n", nextByte);
         emi.vex.present = 1;
         nextState = Vex2Of3State;
+        break;
+      case Unrestricted:
+        DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);
+        emi.unrestricted = 1;
+        break;
+      case HfiStructured:
+        DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);
+        emi.hfi_structured = 1;
+        break;
+      case HfiStructured1:
+        DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);
+        emi.hfi_structured1 = 1;
+        break;
+      case HfiStructured2:
+        DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);
+        emi.hfi_structured2 = 1;
+        break;
+      case HfiStructured3:
+        DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);
+        emi.hfi_structured3 = 1;
+        break;
+      case HfiStructured4:
+        DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);
+        emi.hfi_structured4 = 1;
         break;
       case 0:
         nextState = OneByteOpcodeState;
@@ -690,7 +721,34 @@ Decoder::decode(PCStateBase &next_pc)
         start = 0;
     }
 
-    return decode(emi, origPC);
+    {
+        const auto si = decode(emi, origPC);
+        if (emi.unrestricted)
+        {
+            si->setisUnrestricted();
+        }
+        if (emi.hfi_structured)
+        {
+            si->setIsHFIStuctured();
+        }
+        if (emi.hfi_structured1)
+        {
+            si->setIsHFIStuctured1();
+        }
+        if (emi.hfi_structured2)
+        {
+            si->setIsHFIStuctured2();
+        }
+        if (emi.hfi_structured3)
+        {
+            si->setIsHFIStuctured3();
+        }
+        if (emi.hfi_structured4)
+        {
+            si->setIsHFIStuctured4();
+        }    
+        return si;
+    }
 }
 
 StaticInstPtr

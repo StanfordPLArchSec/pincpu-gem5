@@ -1227,6 +1227,10 @@ let {{
 
     class Rdip(RdRegOp):
         code = 'DestReg = NRIP - CSBase;'
+    
+    class Rdipc(RdRegOp):
+        code = 'DestReg = RIP - CSBase;'
+
 
     class Ruflags(RdRegOp):
         code = 'DestReg = ccFlagBits | cfofBits | dfBit | ecfBit | ezfBit;'

@@ -417,6 +417,45 @@ X86_64Process::initState()
             tc->setMiscReg(misc_reg::Lstar, lstar);
             RegVal sfmask = (1 << 8) | (1 << 10); // TF | DF
             tc->setMiscReg(misc_reg::SfMask, sfmask);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_1_READABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_1_WRITEABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_1_RANGESIZETYPE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_1_BASE_ADDRESS_BASE_MASK, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_1_OFFSET_LIMIT_IGNORE_MASK, 0);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_2_READABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_2_WRITEABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_2_RANGESIZETYPE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_2_BASE_ADDRESS_BASE_MASK, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_2_OFFSET_LIMIT_IGNORE_MASK, 0);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_3_READABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_3_WRITEABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_3_RANGESIZETYPE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_3_BASE_ADDRESS_BASE_MASK, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_3_OFFSET_LIMIT_IGNORE_MASK, 0);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_4_READABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_4_WRITEABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_4_RANGESIZETYPE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_4_BASE_ADDRESS_BASE_MASK, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_RANGE_4_OFFSET_LIMIT_IGNORE_MASK, 0);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_CODERANGE_1_EXECUTABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_CODERANGE_1_BASE_MASK, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_CODERANGE_1_IGNORE_MASK, 0);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_CODERANGE_2_EXECUTABLE, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_CODERANGE_2_BASE_MASK, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_LINEAR_CODERANGE_2_IGNORE_MASK, 0);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_IS_TRUSTED_SANDBOX, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_EXIT_SANDBOX_HANDLER, 0);
+
+            tc->setMiscRegNoEffect(misc_reg::HFI_INSIDE_SANDBOX, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_EXIT_REASON, 0);
+            tc->setMiscRegNoEffect(misc_reg::HFI_EXIT_LOCATION, 0);
         }
 
         /* Set up the content of the TSS and write it to physical memory. */

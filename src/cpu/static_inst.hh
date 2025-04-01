@@ -198,6 +198,13 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     bool isInvalid() const { return flags[IsInvalid]; }
 
+    bool isUnrestricted() const { return flags[IsUnrestricted]; }
+    bool isHFIStuctured() const { return flags[IsHfiStructured]; }
+    bool isHFIStuctured1() const { return flags[IsHfiStructured1]; }
+    bool isHFIStuctured2() const { return flags[IsHfiStructured2]; }
+    bool isHFIStuctured3() const { return flags[IsHfiStructured3]; }
+    bool isHFIStuctured4() const { return flags[IsHfiStructured4]; }
+
     bool
     isHtmCmd() const
     {
@@ -206,6 +213,12 @@ class StaticInst : public RefCounted, public StaticInstFlags
     //@}
 
     void setFirstMicroop() { flags[IsFirstMicroop] = true; }
+    void setisUnrestricted() {flags[IsUnrestricted] = true; }
+    void setIsHFIStuctured() {flags[IsHfiStructured] = true; }
+    void setIsHFIStuctured1() {flags[IsHfiStructured1] = true; }
+    void setIsHFIStuctured2() {flags[IsHfiStructured2] = true; }
+    void setIsHFIStuctured3() {flags[IsHfiStructured3] = true; }
+    void setIsHFIStuctured4() {flags[IsHfiStructured4] = true; }
     void setLastMicroop() { flags[IsLastMicroop] = true; }
     void setDelayedCommit() { flags[IsDelayedCommit] = true; }
     void setFlag(Flags f) { flags[f] = true; }

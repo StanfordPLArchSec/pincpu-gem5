@@ -156,14 +156,108 @@
             // to play with so there can be quite a few pseudo
             // instructions.
             //0x04: loadall_or_reset_or_hang();
-            0x4: BasicOperate::gem5Op({{
-                uint64_t result;
-                bool recognized = pseudo_inst::pseudoInst<X86PseudoInstABI>(
-                        xc->tcBase(), IMMEDIATE, result);
-                Rax = result;
-                if (!recognized)
-                    fault = std::make_shared<InvalidOpcode>();
-            }}, IsNonSpeculative);
+            0x4: decode IMMEDIATE {
+                format BasicOperate {
+                    0x00: m5arm({{
+                        pseudo_inst::arm(xc->tcBase());
+                    }}, IsNonSpeculative);
+                    0x01: m5quiesce({{
+                        pseudo_inst::quiesce(xc->tcBase());
+                    }}, IsNonSpeculative, IsQuiesce);
+                    0x02: m5quiesceNs({{
+                        pseudo_inst::quiesceNs(xc->tcBase(), Rdi);
+                    }}, IsNonSpeculative, IsQuiesce);
+                    0x03: m5quiesceCycle({{
+                        pseudo_inst::quiesceCycles(xc->tcBase(), Rdi);
+                    }}, IsNonSpeculative, IsQuiesce);
+                    0x04: m5quiesceTime({{
+                        Rax = pseudo_inst::quiesceTime(xc->tcBase());
+                    }}, IsNonSpeculative);
+                    0x07: m5rpns({{
+                        Rax = pseudo_inst::rpns(xc->tcBase());
+                    }}, IsNonSpeculative);
+                    0x21: m5exit({{
+                        pseudo_inst::m5exit(xc->tcBase(), Rdi);
+                    }}, IsNonSpeculative);
+                    0x22: m5fail({{
+                        pseudo_inst::m5fail(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x23: m5sum({{
+                        Rax = pseudo_inst::m5sum(xc->tcBase(),
+                                Rdi, Rsi, Rdx, Rcx, R8, R9);
+                    }}, IsNonSpeculative);
+                    0x30: m5initparam({{
+                        Rax = pseudo_inst::initParam(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x31: m5loadsymbol({{
+                        pseudo_inst::loadsymbol(xc->tcBase());
+                    }}, IsNonSpeculative);
+                    0x40: m5resetstats({{
+                        pseudo_inst::resetstats(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x41: m5dumpstats({{
+                        pseudo_inst::dumpstats(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x42: m5dumpresetstats({{
+                        pseudo_inst::dumpresetstats(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x43: m5checkpoint({{
+                        pseudo_inst::m5checkpoint(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x50: m5readfile({{
+                        Rax = pseudo_inst::readfile(
+                            xc->tcBase(), Rdi, Rsi, Rdx);
+                    }}, IsNonSpeculative);
+                    0x51: m5debugbreak({{
+                        pseudo_inst::debugbreak(xc->tcBase());
+                    }}, IsNonSpeculative);
+                    0x52: m5switchcpu({{
+                        pseudo_inst::switchcpu(xc->tcBase());
+                    }}, IsNonSpeculative);
+                    0x53: m5addsymbol({{
+                        pseudo_inst::addsymbol(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x54: m5panic({{
+                        panic("M5 panic instruction called at pc = %#x.\n",
+                              RIP);
+                    }}, IsNonSpeculative);
+                    0x55: m5reserved1({{
+                        warn("M5 reserved opcode 1 ignored.\n");
+                    }}, IsNonSpeculative);
+                    0x56: m5reserved2({{
+                        warn("M5 reserved opcode 2 ignored.\n");
+                    }}, IsNonSpeculative);
+                    0x57: m5reserved3({{
+                        warn("M5 reserved opcode 3 ignored.\n");
+                    }}, IsNonSpeculative);
+                    0x58: m5reserved4({{
+                        warn("M5 reserved opcode 4 ignored.\n");
+                    }}, IsNonSpeculative);
+                    0x59: m5reserved5({{
+                        warn("M5 reserved opcode 5 ignored.\n");
+                    }}, IsNonSpeculative);
+                    0x5a: m5_work_begin({{
+                        pseudo_inst::workbegin(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x5b: m5_work_end({{
+                        pseudo_inst::workend(xc->tcBase(), Rdi, Rsi);
+                    }}, IsNonSpeculative);
+                    0x62: m5togglesync({{
+                        pseudo_inst::togglesync(xc->tcBase());
+                    }}, IsNonSpeculative, IsQuiesce);
+                    0x63: Inst::HFI_GET_VERSION();
+                    0x64: Inst::HFI_GET_LINEAR_DATA_RANGE_COUNT();
+                    0x65: Inst::HFI_ENTER_SANDBOX();
+                    0x66: Inst::HFI_EXIT_SANDBOX();
+                    0x69: Inst::HFI_GET_EXIT_REASON();
+                    0x70: Inst::HFI_GET_EXIT_LOCATION();
+                    0x71: Inst::HFI_SET_SANDBOX_METADATA();
+                    0x72: Inst::HFI_GET_SANDBOX_METADATA();
+                    0x73: Inst::HFI_GET_LINEAR_CODE_RANGE_COUNT();
+
+                    default: Inst::UD2();
+                }
+            }
             0x05: decode FullSystemInt {
                 0: SyscallInst::syscall({{
                     return std::make_shared<SESyscallFault>();

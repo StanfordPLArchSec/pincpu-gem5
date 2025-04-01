@@ -1,0 +1,3 @@
+#!/bin/sh
+
+apptainer run docker/hfi.sif scons build/X86/gem5.opt -j`nproc` --ignore-style

@@ -45,7 +45,7 @@ from common.Caches import *
 
 import m5
 from m5.objects import *
-
+from common.cores.x86 import skylake
 from gem5.isas import ISA
 
 
@@ -96,6 +96,17 @@ def config_cache(options, system):
             core.O3_ARM_v7aL2,
             None,
         )
+    elif options.cpu_type == "Skylake":
+        try:
+            core = skylake
+        except:
+            print("Skylake is unavailable. Did you compile the O3 model?")
+            sys.exit(1)
+
+        dcache_class, icache_class, l2_cache_class, walk_cache_class = \
+            core.Skylake_DCache, core.Skylake_ICache, \
+            core.SkylakeL2, \
+            core.SkylakeWalkCache
     elif options.cpu_type == "HPI":
         try:
             import cores.arm.HPI as core
