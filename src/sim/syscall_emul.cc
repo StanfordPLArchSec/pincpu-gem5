@@ -275,6 +275,15 @@ brkFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> new_brk)
     std::shared_ptr<MemState> mem_state = p->memState;
     Addr brk_point = mem_state->getBrkPoint();
 
+    if (new_brk == 0) {
+        const uint64_t u32max = UINT32_MAX;
+        if ((uint64_t) brk_point < u32max) {
+            Addr new_brk_point = (u32max + 1) << 1;
+            mem_state->updateBrkRegion(brk_point, new_brk_point);
+            brk_point = new_brk_point;
+        }
+    }
+
     // in Linux at least, brk(0) returns the current break value
     // (note that the syscall and the glibc function have different behavior)
     if (new_brk == 0 || (new_brk == brk_point))

@@ -324,6 +324,17 @@ class SIMDFloatingPointFault : public X86Fault
     SIMDFloatingPointFault() : X86Fault("SIMD Floating-Point", "#XF", 19) {}
 };
 
+class HFIBoundsCheck : public X86Abort
+{
+  public:
+    HFIBoundsCheck() : X86Abort("HFI-Bounds-Check", "#HFIBC", 20) {}
+};
+class HFIIllegalInst : public X86Abort
+{
+  public:
+    HFIIllegalInst() : X86Abort("HFI-Illegal-Inst", "#HFIII", 21) {}
+};
+
 class SecurityException : public X86FaultBase
 {
   public:

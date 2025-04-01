@@ -39,6 +39,273 @@ def macroop ADD_R_R
     add reg, reg, regm, flags=(OF,SF,ZF,AF,PF,CF)
 };
 
+def macroop HFI_GET_VERSION
+{
+    limm rax, 2
+};
+
+def macroop HFI_GET_LINEAR_DATA_RANGE_COUNT
+{
+    limm rax, 4
+};
+
+def macroop HFI_GET_LINEAR_CODE_RANGE_COUNT
+{
+    limm rax, 2
+};
+
+def macroop HFI_SET_SANDBOX_METADATA
+{
+    # if (reg_hfi_curr.inside_sandbox && !reg_hfi_curr.is_trusted_sandbox) { SIGSEV; }
+    rdval t1, ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX")
+    rdval t2, ctrlRegIdx("misc_reg::HFI_IS_TRUSTED_SANDBOX")
+    # Get !t2
+    xori t2, t2, 1
+    and t1, t1, t2, flags=(ZF,)
+    br label("hfi_set_sandbox_metadata_continue"), flags=(CZF,)
+    fault "std::make_shared<HFIIllegalInst>()",
+
+hfi_set_sandbox_metadata_continue:
+    limm t1, 0
+    limm t2, 0
+    limm t3, 0
+    limm t4, 0
+    ld t2, seg, [1, t1, rax], dataSize=1
+    ld t3, seg, [1, t1, rax], 1, dataSize=1
+    ld t4, seg, [1, t1, rax], 2, dataSize=1
+    ld t5, seg, [1, t1, rax], 8, dataSize=8
+    ld t6, seg, [1, t1, rax], 16, dataSize=8
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_READABLE"), t2
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_WRITEABLE"), t3
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_RANGESIZETYPE"), t4
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_BASE_ADDRESS_BASE_MASK"), t5
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_OFFSET_LIMIT_IGNORE_MASK"), t6
+
+    limm t1, 24
+    limm t2, 0
+    limm t3, 0
+    limm t4, 0
+    ld t2, seg, [1, t1, rax], dataSize=1
+    ld t3, seg, [1, t1, rax], 1, dataSize=1
+    ld t4, seg, [1, t1, rax], 2, dataSize=1
+    ld t5, seg, [1, t1, rax], 8, dataSize=8
+    ld t6, seg, [1, t1, rax], 16, dataSize=8
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_READABLE"), t2
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_WRITEABLE"), t3
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_RANGESIZETYPE"), t4
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_BASE_ADDRESS_BASE_MASK"), t5
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_OFFSET_LIMIT_IGNORE_MASK"), t6
+
+    limm t1, 48
+    limm t2, 0
+    limm t3, 0
+    limm t4, 0
+    ld t2, seg, [1, t1, rax], dataSize=1
+    ld t3, seg, [1, t1, rax], 1, dataSize=1
+    ld t4, seg, [1, t1, rax], 2, dataSize=1
+    ld t5, seg, [1, t1, rax], 8, dataSize=8
+    ld t6, seg, [1, t1, rax], 16, dataSize=8
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_READABLE"), t2
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_WRITEABLE"), t3
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_RANGESIZETYPE"), t4
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_BASE_ADDRESS_BASE_MASK"), t5
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_OFFSET_LIMIT_IGNORE_MASK"), t6
+
+    limm t1, 72
+    limm t2, 0
+    limm t3, 0
+    limm t4, 0
+    ld t2, seg, [1, t1, rax], dataSize=1
+    ld t3, seg, [1, t1, rax], 1, dataSize=1
+    ld t4, seg, [1, t1, rax], 2, dataSize=1
+    ld t5, seg, [1, t1, rax], 8, dataSize=8
+    ld t6, seg, [1, t1, rax], 16, dataSize=8
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_READABLE"), t2
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_WRITEABLE"), t3
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_RANGESIZETYPE"), t4
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_BASE_ADDRESS_BASE_MASK"), t5
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_OFFSET_LIMIT_IGNORE_MASK"), t6
+
+    limm t1, 96
+    limm t2, 0
+    ld t2, seg, [1, t1, rax], dataSize=1
+    ld t5, seg, [1, t1, rax], 8, dataSize=8
+    ld t6, seg, [1, t1, rax], 16, dataSize=8
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_1_EXECUTABLE"), t2
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_1_BASE_MASK"), t5
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_1_IGNORE_MASK"), t6
+
+    limm t1, 120
+    limm t2, 0
+    ld t2, seg, [1, t1, rax], dataSize=1
+    ld t5, seg, [1, t1, rax], 8, dataSize=8
+    ld t6, seg, [1, t1, rax], 16, dataSize=8
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_2_EXECUTABLE"), t2
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_2_BASE_MASK"), t5
+    wrval ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_2_IGNORE_MASK"), t6
+
+    limm t1, 144
+    limm t2, 0
+    ld t2, seg, [1, t1, rax], dataSize=1
+    ld t4, seg, [1, t1, rax], 8, dataSize=8
+    wrval ctrlRegIdx("misc_reg::HFI_IS_TRUSTED_SANDBOX"), t2
+    wrval ctrlRegIdx("misc_reg::HFI_EXIT_SANDBOX_HANDLER"), t4
+};
+
+def macroop HFI_GET_SANDBOX_METADATA
+{
+    # if (reg_hfi_curr.inside_sandbox && !reg_hfi_curr.is_trusted_sandbox) { SIGSEV; }
+    rdval t1, ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX")
+    rdval t2, ctrlRegIdx("misc_reg::HFI_IS_TRUSTED_SANDBOX")
+    # Get !t2
+    xori t2, t2, 1
+    and t1, t1, t2, flags=(ZF,)
+    br label("hfi_get_sandbox_metadata_continue"), flags=(CZF,)
+    fault "std::make_shared<HFIIllegalInst>()",
+
+hfi_get_sandbox_metadata_continue:
+    limm t1, 0
+    rdval t2, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_READABLE")
+    rdval t3, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_WRITEABLE")
+    rdval t4, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_RANGESIZETYPE")
+    rdval t5, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_BASE_ADDRESS_BASE_MASK")
+    rdval t6, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_1_OFFSET_LIMIT_IGNORE_MASK")
+    st t2, seg, [1, t1, rax], dataSize=1
+    st t3, seg, [1, t1, rax], 1, dataSize=1
+    st t4, seg, [1, t1, rax], 2, dataSize=1
+    st t5, seg, [1, t1, rax], 8, dataSize=8
+    st t6, seg, [1, t1, rax], 16, dataSize=8
+
+    limm t1, 24
+    rdval t2, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_READABLE")
+    rdval t3, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_WRITEABLE")
+    rdval t4, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_RANGESIZETYPE")
+    rdval t5, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_BASE_ADDRESS_BASE_MASK")
+    rdval t6, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_2_OFFSET_LIMIT_IGNORE_MASK")
+    st t2, seg, [1, t1, rax], dataSize=1
+    st t3, seg, [1, t1, rax], 1, dataSize=1
+    st t4, seg, [1, t1, rax], 2, dataSize=1
+    st t5, seg, [1, t1, rax], 8, dataSize=8
+    st t6, seg, [1, t1, rax], 16, dataSize=8
+
+    limm t1, 48
+    rdval t2, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_READABLE")
+    rdval t3, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_WRITEABLE")
+    rdval t4, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_RANGESIZETYPE")
+    rdval t5, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_BASE_ADDRESS_BASE_MASK")
+    rdval t6, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_3_OFFSET_LIMIT_IGNORE_MASK")
+    st t2, seg, [1, t1, rax], dataSize=1
+    st t3, seg, [1, t1, rax], 1, dataSize=1
+    st t4, seg, [1, t1, rax], 2, dataSize=1
+    st t5, seg, [1, t1, rax], 8, dataSize=8
+    st t6, seg, [1, t1, rax], 16, dataSize=8
+
+    limm t1, 72
+    rdval t2, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_READABLE")
+    rdval t3, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_WRITEABLE")
+    rdval t4, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_RANGESIZETYPE")
+    rdval t5, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_BASE_ADDRESS_BASE_MASK")
+    rdval t6, ctrlRegIdx("misc_reg::HFI_LINEAR_RANGE_4_OFFSET_LIMIT_IGNORE_MASK")
+    st t2, seg, [1, t1, rax], dataSize=1
+    st t3, seg, [1, t1, rax], 1, dataSize=1
+    st t4, seg, [1, t1, rax], 2, dataSize=1
+    st t5, seg, [1, t1, rax], 8, dataSize=8
+    st t6, seg, [1, t1, rax], 16, dataSize=8
+
+    limm t1, 96
+    rdval t2, ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_1_EXECUTABLE")
+    rdval t5, ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_1_BASE_MASK")
+    rdval t6, ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_1_IGNORE_MASK")
+    st t2, seg, [1, t1, rax], dataSize=1
+    st t5, seg, [1, t1, rax], 8, dataSize=8
+    st t6, seg, [1, t1, rax], 16, dataSize=8
+
+    limm t1, 120
+    rdval t2, ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_2_EXECUTABLE")
+    rdval t5, ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_2_BASE_MASK")
+    rdval t6, ctrlRegIdx("misc_reg::HFI_LINEAR_CODERANGE_2_IGNORE_MASK")
+    st t2, seg, [1, t1, rax], dataSize=1
+    st t5, seg, [1, t1, rax], 8, dataSize=8
+    st t6, seg, [1, t1, rax], 16, dataSize=8
+
+    limm t1, 144
+    rdval t2, ctrlRegIdx("misc_reg::HFI_IS_TRUSTED_SANDBOX")
+    rdval t4, ctrlRegIdx("misc_reg::HFI_EXIT_SANDBOX_HANDLER")
+    st t2, seg, [1, t1, rax], dataSize=1
+    st t4, seg, [1, t1, rax], 8, dataSize=8
+};
+
+def macroop HFI_ENTER_SANDBOX
+{
+    # if (reg_hfi_curr.inside_sandbox && !reg_hfi_curr.is_trusted_sandbox) { SIGSEV; }
+    rdval t1, ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX")
+    rdval t2, ctrlRegIdx("misc_reg::HFI_IS_TRUSTED_SANDBOX")
+    # Get !t2
+    xori t2, t2, 1
+    and t1, t1, t2, flags=(ZF,)
+    br label("hfi_enter_sandbox_continue"), flags=(CZF,)
+    fault "std::make_shared<HFIIllegalInst>()",
+
+hfi_enter_sandbox_continue:
+    limm t1, 1
+    .serialize_after
+    wrval ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX"), t1
+};
+
+def macroop HFI_EXIT_SANDBOX
+{
+    # if (!reg_hfi_curr.inside_sandbox) { SIGSEV; }
+    rdval t1, ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX")
+    and t1, t1, t1, flags=(ZF,)
+    br label("hfi_exit_sandbox_continue"), flags=(nCZF,)
+    fault "std::make_shared<HFIIllegalInst>()",
+
+hfi_exit_sandbox_continue:
+    limm t2, 1024
+    wrval ctrlRegIdx("misc_reg::HFI_EXIT_REASON"), t2
+    rdipc t3
+    wrval ctrlRegIdx("misc_reg::HFI_EXIT_LOCATION"), t3
+    wrval ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX"), t0
+
+    # if (exit_sandbox_handler) { jmp exit_sandbox_handler; }
+    rdval t2, ctrlRegIdx("misc_reg::HFI_EXIT_SANDBOX_HANDLER")
+    and t3, t2, t2, flags=(ZF,)
+    .serialize_after
+    br label("hfi_exit_sandbox_nohandler"), flags=(CZF,)
+
+    # Make the default data size of jumps 64 bits in 64 bit mode
+    .adjust_env oszIn64Override
+    .control_indirect
+    wripi t2, 0
+
+hfi_exit_sandbox_nohandler:
+    limm t0, 0
+};
+
+def macroop HFI_GET_EXIT_REASON
+{
+    # if (!reg_hfi_curr.inside_sandbox) { SIGSEV; }
+    rdval t1, ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX")
+    and t1, t1, t1, flags=(ZF,)
+    br label("hfi_get_exit_reason_continue"), flags=(nCZF,)
+    fault "std::make_shared<HFIIllegalInst>()",
+
+hfi_get_exit_reason_continue:
+    rdval rax, ctrlRegIdx("misc_reg::HFI_EXIT_REASON")
+};
+
+def macroop HFI_GET_EXIT_LOCATION
+{
+    # if (!reg_hfi_curr.inside_sandbox) { SIGSEV; }
+    rdval t1, ctrlRegIdx("misc_reg::HFI_INSIDE_SANDBOX")
+    and t1, t1, t1, flags=(ZF,)
+    br label("hfi_get_exit_location_continue"), flags=(nCZF,)
+    fault "std::make_shared<HFIIllegalInst>()",
+
+hfi_get_exit_location_continue:
+    rdval rax, ctrlRegIdx("misc_reg::HFI_EXIT_LOCATION")
+};
+
 def macroop ADD_R_I
 {
     limm t1, imm

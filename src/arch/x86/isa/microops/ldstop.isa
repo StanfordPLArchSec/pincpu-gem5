@@ -132,7 +132,11 @@ def template MicroLoadInitiateAcc {{
         %(ea_code)s;
         DPRINTF(X86, "%s : %s: The address is %#x\n", instMnem, mnemonic, EA);
 
-        fault = initiateMemRead(xc, traceData, EA, %(memDataSize)s, memFlags);
+        fault = xc->checkHFI(EA, false, scale, Index, Base, disp);
+
+        if (fault == NoFault)
+            fault = initiateMemRead(xc, traceData, EA,
+                                %(memDataSize)s, memFlags);
 
         return fault;
     }
@@ -202,7 +206,11 @@ def template MicroStoreInitiateAcc {{
         %(ea_code)s;
         DPRINTF(X86, "%s : %s: The address is %#x\n", instMnem, mnemonic, EA);
 
-        %(code)s;
+        fault = xc->checkHFI(EA, true, scale, Index, Base, disp);
+
+        if (fault == NoFault){
+            %(code)s;
+        }
 
         if (fault == NoFault) {
             fault = writeMemTiming(xc, traceData, Mem, dataSize, EA,
@@ -314,6 +322,8 @@ let {{
                 self.instFlags += " | (1ULL << StaticInst::IsNonSpeculative)"
             if uncacheable:
                 self.instFlags += " | Request::UNCACHEABLE"
+            if self.base == "InstRegIndex(INTREG_RSP)":
+                self.instFlags += " | (1ULL << StaticInst::IsUnrestricted)"
             self.memFlags += \
                 " | ((log2i(%s) & AddrSizeFlagMask) << AddrSizeFlagShift)" % \
                 addressSize
@@ -354,6 +364,8 @@ let {{
                 self.instFlags += " | (1ULL << StaticInst::IsNonSpeculative)"
             if uncacheable:
                 self.instFlags += " | Request::UNCACHEABLE"
+            if self.base == "InstRegIndex(INTREG_RSP)":
+                self.instFlags += " | (1ULL << StaticInst::IsUnrestricted)"
             self.memFlags += \
                 " | ((log2i(%s) & AddrSizeFlagMask) << AddrSizeFlagShift)" % \
                 addressSize

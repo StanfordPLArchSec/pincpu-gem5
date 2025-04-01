@@ -73,6 +73,12 @@ enum Prefixes
     Vex2Prefix,
     Vex3Prefix,
     XopPrefix,
+    Unrestricted,
+    HfiStructured,
+    HfiStructured1,
+    HfiStructured2,
+    HfiStructured3,
+    HfiStructured4,
 };
 
 BitUnion8(LegacyPrefixVector)
@@ -240,25 +246,40 @@ struct ExtMachInst
     uint8_t stackSize;
     //The size of the displacement
     uint8_t dispSize;
+    //Unrestricted
+    uint8_t unrestricted;
+    //HfiStructured
+    uint8_t hfi_structured;
+    uint8_t hfi_structured1;
+    uint8_t hfi_structured2;
+    uint8_t hfi_structured3;
+    uint8_t hfi_structured4;  
 
     //Mode information
     OperatingModeAndCPL mode;
 };
 
 inline static std::ostream &
-operator << (std::ostream &os, const ExtMachInst &emi)
+operator << (std::ostream & os, const ExtMachInst & emi)
 {
     ccprintf(os, "\n{\n\tleg = %#x,\n\trex = %#x,\n\t"
-                 "vex/xop = %#x,\n\t"
-                 "op = {\n\t\ttype = %s,\n\t\top = %#x,\n\t\t},\n\t"
-                 "modRM = %#x,\n\tsib = %#x,\n\t"
-                 "immediate = %#x,\n\tdisplacement = %#x\n\t"
-                 "dispSize = %d}\n",
-                 (uint8_t)emi.legacy, (uint8_t)emi.rex,
-                 (uint8_t)emi.vex,
-                 opcodeTypeToStr(emi.opcode.type), (uint8_t)emi.opcode.op,
-                 (uint8_t)emi.modRM, (uint8_t)emi.sib,
-                 emi.immediate, emi.displacement, emi.dispSize);
+             "vex/xop = %#x,\n\t"
+             "op = {\n\t\ttype = %s,\n\t\top = %#x,\n\t\t},\n\t"
+             "modRM = %#x,\n\tsib = %#x,\n\t"
+             "immediate = %#x,\n\tdisplacement = %#x\n\t"
+             "dispSize = %d\n\t"
+             "unrestricted = %#x\n\t"
+             "hfi_structured = %#x\n",
+             "hfi_structured1 = %#x\n",
+             "hfi_structured2 = %#x\n",
+             "hfi_structured3 = %#x\n",
+             "hfi_structured4 = %#x}\n",
+             (uint8_t)emi.legacy, (uint8_t)emi.rex,
+             (uint8_t)emi.vex,
+             opcodeTypeToStr(emi.opcode.type), (uint8_t)emi.opcode.op,
+             (uint8_t)emi.modRM, (uint8_t)emi.sib,
+             emi.immediate, emi.displacement, emi.dispSize, emi.unrestricted, 
+             emi.hfi_structured, emi.hfi_structured1, emi.hfi_structured2, emi.hfi_structured3, emi.hfi_structured4);
     return os;
 }
 
@@ -292,6 +313,18 @@ operator == (const ExtMachInst &emi1, const ExtMachInst &emi2)
     if (emi1.stackSize != emi2.stackSize)
         return false;
     if (emi1.dispSize != emi2.dispSize)
+        return false;
+    if (emi1.unrestricted != emi2.unrestricted)
+        return false;
+    if (emi1.hfi_structured != emi2.hfi_structured)
+        return false;
+    if (emi1.hfi_structured1 != emi2.hfi_structured1)
+        return false;
+    if (emi1.hfi_structured2 != emi2.hfi_structured2)
+        return false;
+    if (emi1.hfi_structured3 != emi2.hfi_structured3)
+        return false;
+    if (emi1.hfi_structured4 != emi2.hfi_structured4)
         return false;
     return true;
 }

@@ -1,7 +1,7 @@
 /*
- * Copyright (c) 2010, 2016, 2021 ARM Limited
+ * Copyright (c) 2011, 2013, 2016-2020 ARM Limited
  * Copyright (c) 2013 Advanced Micro Devices, Inc.
- * All rights reserved
+ * All rights reserved.
  *
  * The license below extends only to copyright in the software and shall
  * not be construed as granting a license to any other intellectual
@@ -13,6 +13,7 @@
  * modified or unmodified, in source code or in binary form.
  *
  * Copyright (c) 2004-2006 The Regents of The University of Michigan
+ * Copyright (c) 2009 The University of Edinburgh
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,134 +40,65 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __CPU_O3_DYN_INST_HH__
-#define __CPU_O3_DYN_INST_HH__
+#ifndef __CPU_BASE_DYN_INST_HH__
+#define __CPU_BASE_DYN_INST_HH__
 
-#include <algorithm>
 #include <array>
+#include <bitset>
 #include <deque>
 #include <list>
 #include <string>
 
-#include "base/refcnt.hh"
+#include "arch/generic/tlb.hh"
+#include "arch/utility.hh"
 #include "base/trace.hh"
+#include "config/the_isa.hh"
 #include "cpu/checker/cpu.hh"
 #include "cpu/exec_context.hh"
 #include "cpu/exetrace.hh"
 #include "cpu/inst_res.hh"
 #include "cpu/inst_seq.hh"
-#include "cpu/o3/cpu.hh"
-#include "cpu/o3/dyn_inst_ptr.hh"
-#include "cpu/o3/lsq_unit.hh"
 #include "cpu/op_class.hh"
-#include "cpu/reg_class.hh"
 #include "cpu/static_inst.hh"
 #include "cpu/translation.hh"
 #include "debug/HtmCpu.hh"
+#include "mem/packet.hh"
+#include "mem/request.hh"
+#include "sim/byteswap.hh"
+#include "sim/system.hh"
 
-namespace gem5
+/**
+ * @file
+ * Defines a dynamic instruction context.
+ */
+
+template <class Impl>
+class BaseDynInst : public ExecContext, public RefCounted
 {
-
-class Packet;
-
-namespace o3
-{
-
-class DynInst : public ExecContext, public RefCounted
-{
-  private:
-    DynInst(const StaticInstPtr &staticInst, const StaticInstPtr &macroop,
-            InstSeqNum seq_num, CPU *cpu);
-
   public:
+    // Typedef for the CPU.
+    typedef typename Impl::CPUType ImplCPU;
+    typedef typename ImplCPU::ImplState ImplState;
+    using VecRegContainer = TheISA::VecRegContainer;
+
+    using LSQRequestPtr = typename Impl::CPUPol::LSQ::LSQRequest*;
+    using LQIterator = typename Impl::CPUPol::LSQUnit::LQIterator;
+    using SQIterator = typename Impl::CPUPol::LSQUnit::SQIterator;
+
+    // The DynInstPtr type.
+    typedef typename Impl::DynInstPtr DynInstPtr;
+    typedef RefCountingPtr<BaseDynInst<Impl> > BaseDynInstPtr;
+
     // The list of instructions iterator type.
     typedef typename std::list<DynInstPtr>::iterator ListIt;
 
-    struct Arrays
-    {
-        size_t numSrcs;
-        size_t numDests;
-
-        RegId *flatDestIdx;
-        PhysRegIdPtr *destIdx;
-        PhysRegIdPtr *prevDestIdx;
-        PhysRegIdPtr *srcIdx;
-        uint8_t *readySrcIdx;
+    enum {
+        MaxInstSrcRegs = TheISA::MaxInstSrcRegs,        /// Max source regs
+        MaxInstDestRegs = TheISA::MaxInstDestRegs       /// Max dest regs
     };
 
-    static void *operator new(size_t count, Arrays &arrays);
-    static void  operator delete(void* ptr);
-
-    /** BaseDynInst constructor given a binary instruction. */
-    DynInst(const Arrays &arrays, const StaticInstPtr &staticInst,
-            const StaticInstPtr &macroop, InstSeqNum seq_num, CPU *cpu);
-
-    DynInst(const Arrays &arrays, const StaticInstPtr &staticInst,
-            const StaticInstPtr &macroop, const PCStateBase &pc,
-            const PCStateBase &pred_pc, InstSeqNum seq_num, CPU *cpu);
-
-    /** BaseDynInst constructor given a static inst pointer. */
-    DynInst(const Arrays &arrays, const StaticInstPtr &_staticInst,
-            const StaticInstPtr &_macroop);
-
-    ~DynInst();
-
-    /** Executes the instruction.*/
-    Fault execute();
-
-    /** Initiates the access.  Only valid for memory operations. */
-    Fault initiateAcc();
-
-    /** Completes the access.  Only valid for memory operations. */
-    Fault completeAcc(PacketPtr pkt);
-
-    /** The sequence number of the instruction. */
-    InstSeqNum seqNum = 0;
-
-    /** The StaticInst used by this BaseDynInst. */
-    const StaticInstPtr staticInst;
-
-    /** Pointer to the Impl's CPU object. */
-    CPU *cpu = nullptr;
-
-    BaseCPU *getCpuPtr() { return cpu; }
-
-    /** Pointer to the thread state. */
-    ThreadState *thread = nullptr;
-
-    /** The kind of fault this instruction has generated. */
-    Fault fault = NoFault;
-
-    /** InstRecord that tracks this instructions. */
-    trace::InstRecord *traceData = nullptr;
-
-    void printHFIMetadata();
-    Addr doHFIStructuredMov(uint64_t segment_index,
-        uint64_t scale,
-        uint64_t index,
-        uint64_t displacement,
-        RegIndex reg_base_address,
-        RegIndex reg_offset_limit,
-        RegIndex reg_perm,
-        RegIndex reg_rangesizetype,
-        bool& out_faulted);
-    void doHFIMaskCheck(Addr EA,
-        RegIndex reg_base_mask,
-        RegIndex reg_ignore_mask,
-        RegIndex reg_perm,
-        bool& out_found,
-        bool& out_faulted);
-
-    /** check the HFI for the effective address */
-    Fault checkHFI(Addr &EA, bool is_store, uint64_t scale, uint64_t index, uint64_t base, uint64_t displacement) override;
-
-
-    /** checks the HFI control path returns true if the check passes**/
-    bool checkHFICtrl(Addr pc);
-
   protected:
-    enum Status
-    {
+    enum Status {
         IqEntry,                 /// Instruction is in the IQ
         RobEntry,                /// Instruction is in the ROB
         LsqEntry,                /// Instruction is in the LSQ
@@ -195,8 +127,7 @@ class DynInst : public ExecContext, public RefCounted
         NumStatus
     };
 
-    enum Flags
-    {
+    enum Flags {
         NotAnInst,
         TranslationStarted,
         TranslationCompleted,
@@ -211,10 +142,38 @@ class DynInst : public ExecContext, public RefCounted
         ReqMade,
         MemOpDone,
         HtmFromTransaction,
-        NoCapableFU,           /// Processor does not have capability to
-                               /// execute the instruction
         MaxFlags
     };
+
+  public:
+    /** The sequence number of the instruction. */
+    InstSeqNum seqNum;
+
+    /** The StaticInst used by this BaseDynInst. */
+    const StaticInstPtr staticInst;
+
+    /** Pointer to the Impl's CPU object. */
+    ImplCPU *cpu;
+
+    BaseCPU *getCpuPtr() { return cpu; }
+
+    /** Pointer to the thread state. */
+    ImplState *thread;
+
+    /** The kind of fault this instruction has generated. */
+    Fault fault;
+
+    /** InstRecord that tracks this instructions. */
+    Trace::InstRecord *traceData;
+
+  protected:
+    /** The result of the instruction; assumes an instruction can have many
+     *  destination registers.
+     */
+    std::queue<InstResult> instResult;
+
+    /** PC state for this instruction. */
+    TheISA::PCState pc;
 
   private:
     /* An amalgamation of a lot of boolean values into one */
@@ -224,161 +183,52 @@ class DynInst : public ExecContext, public RefCounted
     std::bitset<NumStatus> status;
 
   protected:
-    /** The result of the instruction; assumes an instruction can have many
-     *  destination registers.
+     /** Whether or not the source register is ready.
+     *  @todo: Not sure this should be here vs the derived class.
      */
-    std::queue<InstResult> instResult;
-
-    /** PC state for this instruction. */
-    std::unique_ptr<PCStateBase> pc;
-
-    /** Values to be written to the destination misc. registers. */
-    std::vector<RegVal> _destMiscRegVal;
-
-    /** Indexes of the destination misc. registers. They are needed to defer
-     * the write accesses to the misc. registers until the commit stage, when
-     * the instruction is out of its speculative state.
-     */
-    std::vector<short> _destMiscRegIdx;
-
-    size_t _numSrcs;
-    size_t _numDests;
-
-    // Flattened register index of the destination registers of this
-    // instruction.
-    RegId *_flatDestIdx;
-
-    // Physical register index of the destination registers of this
-    // instruction.
-    PhysRegIdPtr *_destIdx;
-
-    // Physical register index of the previous producers of the
-    // architected destinations.
-    PhysRegIdPtr *_prevDestIdx;
-
-    // Physical register index of the source registers of this instruction.
-    PhysRegIdPtr *_srcIdx;
-
-    // Whether or not the source register is ready, one bit per register.
-    uint8_t *_readySrcIdx;
+    std::bitset<MaxInstSrcRegs> _readySrcRegIdx;
 
   public:
-    size_t numSrcs() const { return _numSrcs; }
-    size_t numDests() const { return _numDests; }
-
-    // Returns the flattened register index of the idx'th destination
-    // register.
-    const RegId &
-    flattenedDestIdx(int idx) const
-    {
-        return _flatDestIdx[idx];
-    }
-
-    // Flattens a destination architectural register index into a logical
-    // index.
-    void
-    flattenedDestIdx(int idx, const RegId &reg_id)
-    {
-        _flatDestIdx[idx] = reg_id;
-    }
-
-    // Returns the physical register index of the idx'th destination
-    // register.
-    PhysRegIdPtr
-    renamedDestIdx(int idx) const
-    {
-        return _destIdx[idx];
-    }
-
-    // Set the renamed dest register id.
-    void
-    renamedDestIdx(int idx, PhysRegIdPtr phys_reg_id)
-    {
-        _destIdx[idx] = phys_reg_id;
-    }
-
-    // Returns the physical register index of the previous physical
-    // register that remapped to the same logical register index.
-    PhysRegIdPtr
-    prevDestIdx(int idx) const
-    {
-        return _prevDestIdx[idx];
-    }
-
-    // Set the previous renamed dest register id.
-    void
-    prevDestIdx(int idx, PhysRegIdPtr phys_reg_id)
-    {
-        _prevDestIdx[idx] = phys_reg_id;
-    }
-
-    // Returns the physical register index of the i'th source register.
-    PhysRegIdPtr
-    renamedSrcIdx(int idx) const
-    {
-        return _srcIdx[idx];
-    }
-
-    void
-    renamedSrcIdx(int idx, PhysRegIdPtr phys_reg_id)
-    {
-        _srcIdx[idx] = phys_reg_id;
-    }
-
-    bool
-    readySrcIdx(int idx) const
-    {
-        uint8_t &byte = _readySrcIdx[idx / 8];
-        return bits(byte, idx % 8);
-    }
-
-    void
-    readySrcIdx(int idx, bool ready)
-    {
-        uint8_t &byte = _readySrcIdx[idx / 8];
-        replaceBits(byte, idx % 8, ready ? 1 : 0);
-    }
-
     /** The thread this instruction is from. */
-    ThreadID threadNumber = 0;
+    ThreadID threadNumber;
 
     /** Iterator pointing to this BaseDynInst in the list of all insts. */
     ListIt instListIt;
 
     ////////////////////// Branch Data ///////////////
     /** Predicted PC state after this instruction. */
-    std::unique_ptr<PCStateBase> predPC;
+    TheISA::PCState predPC;
 
     /** The Macroop if one exists */
     const StaticInstPtr macroop;
 
     /** How many source registers are ready. */
-    uint8_t readyRegs = 0;
+    uint8_t readyRegs;
 
   public:
     /////////////////////// Load Store Data //////////////////////
     /** The effective virtual address (lds & stores only). */
-    Addr effAddr = 0;
+    Addr effAddr;
 
     /** The effective physical address. */
-    Addr physEffAddr = 0;
+    Addr physEffAddr;
 
     /** The memory request flags (from translation). */
-    unsigned memReqFlags = 0;
+    unsigned memReqFlags;
 
     /** The size of the request */
     unsigned effSize;
 
     /** Pointer to the data for the memory access. */
-    uint8_t *memData = nullptr;
+    uint8_t *memData;
 
     /** Load queue index. */
-    ssize_t lqIdx = -1;
-    typename LSQUnit::LQIterator lqIt;
+    int16_t lqIdx;
+    LQIterator lqIt;
 
     /** Store queue index. */
-    ssize_t sqIdx = -1;
-    typename LSQUnit::SQIterator sqIt;
+    int16_t sqIdx;
+    SQIterator sqIt;
 
 
     /////////////////////// TLB Miss //////////////////////
@@ -386,11 +236,38 @@ class DynInst : public ExecContext, public RefCounted
      * Saved memory request (needed when the DTB address translation is
      * delayed due to a hw page table walk).
      */
-    LSQ::LSQRequest *savedRequest;
+    LSQRequestPtr savedReq;
 
     /////////////////////// Checker //////////////////////
     // Need a copy of main request pointer to verify on writes.
     RequestPtr reqToVerify;
+
+  private:
+    // hardware transactional memory
+    uint64_t htmUid;
+    uint64_t htmDepth;
+
+  protected:
+    /** Flattened register index of the destination registers of this
+     *  instruction.
+     */
+    std::array<RegId, TheISA::MaxInstDestRegs> _flatDestRegIdx;
+
+    /** Physical register index of the destination registers of this
+     *  instruction.
+     */
+    std::array<PhysRegIdPtr, TheISA::MaxInstDestRegs> _destRegIdx;
+
+    /** Physical register index of the source registers of this
+     *  instruction.
+     */
+    std::array<PhysRegIdPtr, TheISA::MaxInstSrcRegs> _srcRegIdx;
+
+    /** Physical register index of the previous producers of the
+     *  architected destinations.
+     */
+    std::array<PhysRegIdPtr, TheISA::MaxInstDestRegs> _prevDestRegIdx;
+
 
   public:
     /** Records changes to result? */
@@ -419,15 +296,26 @@ class DynInst : public ExecContext, public RefCounted
     {
         cpu->demapPage(vaddr, asn);
     }
+    void
+    demapInstPage(Addr vaddr, uint64_t asn)
+    {
+        cpu->demapPage(vaddr, asn);
+    }
+    void
+    demapDataPage(Addr vaddr, uint64_t asn)
+    {
+        cpu->demapPage(vaddr, asn);
+    }
 
     Fault initiateMemRead(Addr addr, unsigned size, Request::Flags flags,
-            const std::vector<bool> &byte_enable) override;
+            const std::vector<bool> &byte_enable=std::vector<bool>()) override;
 
-    Fault initiateMemMgmtCmd(Request::Flags flags) override;
+    Fault initiateHtmCmd(Request::Flags flags) override;
 
     Fault writeMem(uint8_t *data, unsigned size, Addr addr,
                    Request::Flags flags, uint64_t *res,
-                   const std::vector<bool> &byte_enable) override;
+                   const std::vector<bool> &byte_enable=std::vector<bool>())
+                   override;
 
     Fault initiateMemAMO(Addr addr, unsigned size, Request::Flags flags,
                          AtomicOpFunctorPtr amo_op) override;
@@ -437,11 +325,7 @@ class DynInst : public ExecContext, public RefCounted
     void translationStarted(bool f) { instFlags[TranslationStarted] = f; }
 
     /** True if the DTB address translation has completed. */
-    bool
-    translationCompleted() const
-    {
-        return instFlags[TranslationCompleted];
-    }
+    bool translationCompleted() const { return instFlags[TranslationCompleted]; }
     void translationCompleted(bool f) { instFlags[TranslationCompleted] = f; }
 
     /** True if this address was found to match a previous load and they issued
@@ -478,9 +362,44 @@ class DynInst : public ExecContext, public RefCounted
     }
 
   public:
-#ifdef GEM5_DEBUG
+#ifdef DEBUG
     void dumpSNList();
 #endif
+
+    /** Returns the physical register index of the i'th destination
+     *  register.
+     */
+    PhysRegIdPtr
+    renamedDestRegIdx(int idx) const
+    {
+        return _destRegIdx[idx];
+    }
+
+    /** Returns the physical register index of the i'th source register. */
+    PhysRegIdPtr
+    renamedSrcRegIdx(int idx) const
+    {
+        assert(TheISA::MaxInstSrcRegs > idx);
+        return _srcRegIdx[idx];
+    }
+
+    /** Returns the flattened register index of the i'th destination
+     *  register.
+     */
+    const RegId &
+    flattenedDestRegIdx(int idx) const
+    {
+        return _flatDestRegIdx[idx];
+    }
+
+    /** Returns the physical register index of the previous physical register
+     *  that remapped to the same logical register index.
+     */
+    PhysRegIdPtr
+    prevDestRegIdx(int idx) const
+    {
+        return _prevDestRegIdx[idx];
+    }
 
     /** Renames a destination register to a physical register.  Also records
      *  the previous physical register that the logical register mapped to.
@@ -489,8 +408,8 @@ class DynInst : public ExecContext, public RefCounted
     renameDestReg(int idx, PhysRegIdPtr renamed_dest,
                   PhysRegIdPtr previous_rename)
     {
-        renamedDestIdx(idx, renamed_dest);
-        prevDestIdx(idx, previous_rename);
+        _destRegIdx[idx] = renamed_dest;
+        _prevDestRegIdx[idx] = previous_rename;
         if (renamed_dest->isPinned())
             setPinnedRegsRenamed();
     }
@@ -502,9 +421,41 @@ class DynInst : public ExecContext, public RefCounted
     void
     renameSrcReg(int idx, PhysRegIdPtr renamed_src)
     {
-        renamedSrcIdx(idx, renamed_src);
+        _srcRegIdx[idx] = renamed_src;
     }
 
+    /** Flattens a destination architectural register index into a logical
+     * index.
+     */
+    void
+    flattenDestReg(int idx, const RegId &flattened_dest)
+    {
+        _flatDestRegIdx[idx] = flattened_dest;
+    }
+    /** BaseDynInst constructor given a binary instruction.
+     *  @param staticInst A StaticInstPtr to the underlying instruction.
+     *  @param pc The PC state for the instruction.
+     *  @param predPC The predicted next PC state for the instruction.
+     *  @param seq_num The sequence number of the instruction.
+     *  @param cpu Pointer to the instruction's CPU.
+     */
+    BaseDynInst(const StaticInstPtr &staticInst, const StaticInstPtr &macroop,
+                TheISA::PCState pc, TheISA::PCState predPC,
+                InstSeqNum seq_num, ImplCPU *cpu);
+
+    /** BaseDynInst constructor given a StaticInst pointer.
+     *  @param _staticInst The StaticInst for this BaseDynInst.
+     */
+    BaseDynInst(const StaticInstPtr &staticInst, const StaticInstPtr &macroop);
+
+    /** BaseDynInst destructor. */
+    ~BaseDynInst();
+
+  private:
+    /** Function to initialize variables in the constructors. */
+    void initVars();
+
+  public:
     /** Dumps out contents of this BaseDynInst. */
     void dump();
 
@@ -537,9 +488,18 @@ class DynInst : public ExecContext, public RefCounted
     bool doneTargCalc() { return false; }
 
     /** Set the predicted target of this current instruction. */
-    void setPredTarg(const PCStateBase &pred_pc) { set(predPC, pred_pc); }
+    void setPredTarg(const TheISA::PCState &_predPC) { predPC = _predPC; }
 
-    const PCStateBase &readPredTarg() { return *predPC; }
+    const TheISA::PCState &readPredTarg() { return predPC; }
+
+    /** Returns the predicted PC immediately after the branch. */
+    Addr predInstAddr() { return predPC.instAddr(); }
+
+    /** Returns the predicted PC two instructions after the branch */
+    Addr predNextInstAddr() { return predPC.nextInstAddr(); }
+
+    /** Returns the predicted micro PC after the branch */
+    Addr predMicroPC() { return predPC.microPC(); }
 
     /** Returns whether the instruction was predicted taken or not. */
     bool readPredTaken() { return instFlags[PredTaken]; }
@@ -554,9 +514,9 @@ class DynInst : public ExecContext, public RefCounted
     bool
     mispredicted()
     {
-        std::unique_ptr<PCStateBase> next_pc(pc->clone());
-        staticInst->advancePC(*next_pc);
-        return *next_pc != *predPC;
+        TheISA::PCState tempPC = pc;
+        TheISA::advancePC(tempPC, staticInst);
+        return !(tempPC == predPC);
     }
 
     //
@@ -581,6 +541,8 @@ class DynInst : public ExecContext, public RefCounted
     bool isIndirectCtrl() const { return staticInst->isIndirectCtrl(); }
     bool isCondCtrl()     const { return staticInst->isCondCtrl(); }
     bool isUncondCtrl()   const { return staticInst->isUncondCtrl(); }
+    bool isCondDelaySlot() const { return staticInst->isCondDelaySlot(); }
+    bool isThreadSync()   const { return staticInst->isThreadSync(); }
     bool isSerializing()  const { return staticInst->isSerializing(); }
     bool
     isSerializeBefore() const
@@ -593,11 +555,11 @@ class DynInst : public ExecContext, public RefCounted
         return staticInst->isSerializeAfter() || status[SerializeAfter];
     }
     bool isSquashAfter() const { return staticInst->isSquashAfter(); }
-    bool isFullMemBarrier()   const { return staticInst->isFullMemBarrier(); }
-    bool isReadBarrier() const { return staticInst->isReadBarrier(); }
+    bool isMemBarrier()   const { return staticInst->isMemBarrier(); }
     bool isWriteBarrier() const { return staticInst->isWriteBarrier(); }
     bool isNonSpeculative() const { return staticInst->isNonSpeculative(); }
     bool isQuiesce() const { return staticInst->isQuiesce(); }
+    bool isIprAccess() const { return staticInst->isIprAccess(); }
     bool isUnverifiable() const { return staticInst->isUnverifiable(); }
     bool isSyscall() const { return staticInst->isSyscall(); }
     bool isMacroop() const { return staticInst->isMacroop(); }
@@ -605,6 +567,7 @@ class DynInst : public ExecContext, public RefCounted
     bool isDelayedCommit() const { return staticInst->isDelayedCommit(); }
     bool isLastMicroop() const { return staticInst->isLastMicroop(); }
     bool isFirstMicroop() const { return staticInst->isFirstMicroop(); }
+    bool isMicroBranch() const { return staticInst->isMicroBranch(); }
     // hardware transactional memory
     bool isHtmStart() const { return staticInst->isHtmStart(); }
     bool isHtmStop() const { return staticInst->isHtmStop(); }
@@ -617,12 +580,11 @@ class DynInst : public ExecContext, public RefCounted
     bool isHFIStuctured2() const { return staticInst->isHFIStuctured2(); }
     bool isHFIStuctured3() const { return staticInst->isHFIStuctured3(); }
     bool isHFIStuctured4() const { return staticInst->isHFIStuctured4(); }
-
     uint64_t
     getHtmTransactionUid() const override
     {
         assert(instFlags[HtmFromTransaction]);
-        return htmUid;
+        return this->htmUid;
     }
 
     uint64_t
@@ -630,6 +592,13 @@ class DynInst : public ExecContext, public RefCounted
     {
         panic("Not yet implemented\n");
         return 0;
+    }
+
+    Fault
+    checkHFI(Addr &EA, bool is_store, uint64_t scale, uint64_t index, uint64_t base, uint64_t displacement) override
+    {
+        panic("Not yet implemented\n");
+        return NoFault;
     }
 
     bool
@@ -642,7 +611,7 @@ class DynInst : public ExecContext, public RefCounted
     getHtmTransactionalDepth() const override
     {
         if (inHtmTransactionalState())
-            return htmDepth;
+            return this->htmDepth;
         else
             return 0;
     }
@@ -701,22 +670,30 @@ class DynInst : public ExecContext, public RefCounted
     OpClass opClass() const { return staticInst->opClass(); }
 
     /** Returns the branch target address. */
-    std::unique_ptr<PCStateBase>
-    branchTarget() const
-    {
-        return staticInst->branchTarget(*pc);
-    }
+    TheISA::PCState branchTarget() const
+    { return staticInst->branchTarget(pc); }
 
     /** Returns the number of source registers. */
-    size_t numSrcRegs() const { return numSrcs(); }
+    int8_t numSrcRegs() const { return staticInst->numSrcRegs(); }
 
     /** Returns the number of destination registers. */
-    size_t numDestRegs() const { return numDests(); }
+    int8_t numDestRegs() const { return staticInst->numDestRegs(); }
 
-    size_t
-    numDestRegs(RegClassType type) const
+    // the following are used to track physical register usage
+    // for machines with separate int & FP reg files
+    int8_t numFPDestRegs()  const { return staticInst->numFPDestRegs(); }
+    int8_t numIntDestRegs() const { return staticInst->numIntDestRegs(); }
+    int8_t numCCDestRegs() const { return staticInst->numCCDestRegs(); }
+    int8_t numVecDestRegs() const { return staticInst->numVecDestRegs(); }
+    int8_t
+    numVecElemDestRegs() const
     {
-        return staticInst->numDestRegs(type);
+        return staticInst->numVecElemDestRegs();
+    }
+    int8_t
+    numVecPredDestRegs() const
+    {
+        return staticInst->numVecPredDestRegs();
     }
 
     /** Returns the logical register index of the i'th destination register. */
@@ -744,21 +721,108 @@ class DynInst : public ExecContext, public RefCounted
 
     /** Pushes a result onto the instResult queue. */
     /** @{ */
+    /** Scalar result. */
     template<typename T>
     void
-    setResult(const RegClass &reg_class, T &&t)
+    setScalarResult(T &&t)
     {
         if (instFlags[RecordResult]) {
-            instResult.emplace(reg_class, std::forward<T>(t));
+            instResult.push(InstResult(std::forward<T>(t),
+                        InstResult::ResultType::Scalar));
+        }
+    }
+
+    /** Full vector result. */
+    template<typename T>
+    void
+    setVecResult(T &&t)
+    {
+        if (instFlags[RecordResult]) {
+            instResult.push(InstResult(std::forward<T>(t),
+                        InstResult::ResultType::VecReg));
+        }
+    }
+
+    /** Vector element result. */
+    template<typename T>
+    void
+    setVecElemResult(T &&t)
+    {
+        if (instFlags[RecordResult]) {
+            instResult.push(InstResult(std::forward<T>(t),
+                        InstResult::ResultType::VecElem));
+        }
+    }
+
+    /** Predicate result. */
+    template<typename T>
+    void
+    setVecPredResult(T &&t)
+    {
+        if (instFlags[RecordResult]) {
+            instResult.push(InstResult(std::forward<T>(t),
+                            InstResult::ResultType::VecPredReg));
         }
     }
     /** @} */
+
+    /** Records an integer register being set to a value. */
+    void
+    setIntRegOperand(const StaticInst *si, int idx, RegVal val) override
+    {
+        setScalarResult(val);
+    }
+
+    /** Records a CC register being set to a value. */
+    void
+    setCCRegOperand(const StaticInst *si, int idx, RegVal val) override
+    {
+        setScalarResult(val);
+    }
+
+    /** Record a vector register being set to a value */
+    void
+    setVecRegOperand(const StaticInst *si, int idx,
+                     const VecRegContainer &val) override
+    {
+        setVecResult(val);
+    }
+
+    /** Records an fp register being set to an integer value. */
+    void
+    setFloatRegOperandBits(const StaticInst *si, int idx, RegVal val) override
+    {
+        setScalarResult(val);
+    }
+
+    /** Record a vector register being set to a value */
+    void
+    setVecElemOperand(const StaticInst *si, int idx,
+                      const VecElem val) override
+    {
+        setVecElemResult(val);
+    }
+
+    /** Record a vector register being set to a value */
+    void
+    setVecPredRegOperand(const StaticInst *si, int idx,
+                         const VecPredRegContainer &val) override
+    {
+        setVecPredResult(val);
+    }
 
     /** Records that one of the source registers is ready. */
     void markSrcRegReady();
 
     /** Marks a specific register as ready. */
     void markSrcRegReady(RegIndex src_idx);
+
+    /** Returns if a source register is ready. */
+    bool
+    isReadySrcRegIdx(int idx) const
+    {
+        return this->_readySrcRegIdx[idx];
+    }
 
     /** Sets this instruction as completed. */
     void setCompleted() { status.set(Completed); }
@@ -874,16 +938,6 @@ class DynInst : public ExecContext, public RefCounted
     /** Returns whether or not this instruction is squashed in the ROB. */
     bool isSquashedInROB() const { return status[SquashedInROB]; }
 
-    /** Mark this instruction as having attempted to execute
-     * but CPU did not have a capable functional unit.
-     */
-    void setNoCapableFU() { instFlags.set(NoCapableFU); }
-
-    /** Returns whether or not this instruction attempted
-     * to execute and found not capable FU.
-     */
-    bool noCapableFU() const { return instFlags[NoCapableFU]; }
-
     /** Returns whether pinned registers are renamed */
     bool isPinnedRegsRenamed() const { return status[PinnedRegsRenamed]; }
 
@@ -910,28 +964,29 @@ class DynInst : public ExecContext, public RefCounted
 
     /** Return whether dest registers' pinning status updated after squash */
     bool
-    isPinnedRegsSquashDone() const
-    {
-        return status[PinnedRegsSquashDone];
-    }
+    isPinnedRegsSquashDone() const { return status[PinnedRegsSquashDone]; }
 
     /** Sets dest registers' status updated after squash */
     void
-    setPinnedRegsSquashDone()
-    {
+    setPinnedRegsSquashDone() {
         assert(!status[PinnedRegsSquashDone]);
         status.set(PinnedRegsSquashDone);
     }
 
     /** Read the PC state of this instruction. */
-    const PCStateBase &
-    pcState() const override
-    {
-        return *pc;
-    }
+    TheISA::PCState pcState() const override { return pc; }
 
     /** Set the PC state of this instruction. */
-    void pcState(const PCStateBase &val) override { set(pc, val); }
+    void pcState(const TheISA::PCState &val) override { pc = val; }
+
+    /** Read the PC of this instruction. */
+    Addr instAddr() const { return pc.instAddr(); }
+
+    /** Read the PC of the next instruction. */
+    Addr nextInstAddr() const { return pc.nextInstAddr(); }
+
+    /**Read the micro PC of this instruction. */
+    Addr microPC() const { return pc.microPC(); }
 
     bool readPredicate() const override { return instFlags[Predicate]; }
 
@@ -961,12 +1016,15 @@ class DynInst : public ExecContext, public RefCounted
     void setTid(ThreadID tid) { threadNumber = tid; }
 
     /** Sets the pointer to the thread state. */
-    void setThreadState(ThreadState *state) { thread = state; }
+    void setThreadState(ImplState *state) { thread = state; }
 
     /** Returns the thread context. */
-    gem5::ThreadContext *tcBase() const override { return thread->getTC(); }
+    ThreadContext *tcBase() const override { return thread->getTC(); }
 
   public:
+    /** Returns whether or not the eff. addr. source registers are ready. */
+    bool eaSrcsReady() const;
+
     /** Is this instruction's memory access strictly ordered? */
     bool strictlyOrdered() const { return instFlags[IsStrictlyOrdered]; }
     void strictlyOrdered(bool so) { instFlags[IsStrictlyOrdered] = so; }
@@ -1010,198 +1068,67 @@ class DynInst : public ExecContext, public RefCounted
         return cpu->mwait(threadNumber, pkt);
     }
     void
-    mwaitAtomic(gem5::ThreadContext *tc) override
+    mwaitAtomic(ThreadContext *tc) override
     {
-        return cpu->mwaitAtomic(threadNumber, tc, cpu->mmu);
+        return cpu->mwaitAtomic(threadNumber, tc, cpu->dtb);
     }
     AddressMonitor *
     getAddrMonitor() override
     {
         return cpu->getCpuAddrMonitor(threadNumber);
     }
-
-  private:
-    // hardware transactional memory
-    uint64_t htmUid = -1;
-    uint64_t htmDepth = 0;
-
-  public:
-#if TRACING_ON
-    // Value -1 indicates that particular phase
-    // hasn't happened (yet).
-    /** Tick records used for the pipeline activity viewer. */
-    Tick fetchTick = -1;      // instruction fetch is completed.
-    int32_t decodeTick = -1;  // instruction enters decode phase
-    int32_t renameTick = -1;  // instruction enters rename phase
-    int32_t dispatchTick = -1;
-    int32_t issueTick = -1;
-    int32_t completeTick = -1;
-    int32_t commitTick = -1;
-    int32_t storeTick = -1;
-#endif
-
-    /* Values used by LoadToUse stat */
-    Tick firstIssue = -1;
-    Tick lastWakeDependents = -1;
-
-    /** Reads a misc. register, including any side-effects the read
-     * might have as defined by the architecture.
-     */
-    RegVal
-    readMiscReg(int misc_reg) override
-    {
-        return cpu->readMiscReg(misc_reg, threadNumber);
-    }
-
-    /** Sets a misc. register, including any side-effects the write
-     * might have as defined by the architecture.
-     */
-    void
-    setMiscReg(int misc_reg, RegVal val) override
-    {
-        /** Writes to misc. registers are recorded and deferred until the
-         * commit stage, when updateMiscRegs() is called. First, check if
-         * the misc reg has been written before and update its value to be
-         * committed instead of making a new entry. If not, make a new
-         * entry and record the write.
-         */
-        for (auto &idx: _destMiscRegIdx) {
-            if (idx == misc_reg)
-                return;
-        }
-
-        _destMiscRegIdx.push_back(misc_reg);
-        _destMiscRegVal.push_back(val);
-    }
-
-    /** Reads a misc. register, including any side-effects the read
-     * might have as defined by the architecture.
-     */
-    RegVal
-    readMiscRegOperand(const StaticInst *si, int idx) override
-    {
-        const RegId& reg = si->srcRegIdx(idx);
-        assert(reg.is(MiscRegClass));
-        return cpu->readMiscReg(reg.index(), threadNumber);
-    }
-
-    /** Sets a misc. register, including any side-effects the write
-     * might have as defined by the architecture.
-     */
-    void
-    setMiscRegOperand(const StaticInst *si, int idx, RegVal val) override
-    {
-        const RegId& reg = si->destRegIdx(idx);
-        assert(reg.is(MiscRegClass));
-        setMiscReg(reg.index(), val);
-    }
-
-    /** Called at the commit stage to update the misc. registers. */
-    void
-    updateMiscRegs()
-    {
-        // @todo: Pretty convoluted way to avoid squashing from happening when
-        // using the TC during an instruction's execution (specifically for
-        // instructions that have side-effects that use the TC).  Fix this.
-        // See cpu/o3/dyn_inst_impl.hh.
-        bool no_squash_from_TC = thread->noSquashFromTC;
-        thread->noSquashFromTC = true;
-
-        for (int i = 0; i < _destMiscRegIdx.size(); i++)
-            cpu->setMiscReg(
-                _destMiscRegIdx[i], _destMiscRegVal[i], threadNumber);
-
-        thread->noSquashFromTC = no_squash_from_TC;
-    }
-
-    void
-    forwardOldRegs()
-    {
-
-        for (int idx = 0; idx < numDestRegs(); idx++) {
-            PhysRegIdPtr prev_phys_reg = prevDestIdx(idx);
-            const RegId& original_dest_reg = staticInst->destRegIdx(idx);
-            const auto bytes = original_dest_reg.regClass().regBytes();
-
-            // Registers which aren't renamed don't need to be forwarded.
-            if (!original_dest_reg.isRenameable())
-                continue;
-
-            if (bytes == sizeof(RegVal)) {
-                setRegOperand(staticInst.get(), idx,
-                        cpu->getReg(prev_phys_reg, threadNumber));
-            } else {
-                uint8_t val[original_dest_reg.regClass().regBytes()];
-                cpu->getReg(prev_phys_reg, val, threadNumber);
-                setRegOperand(staticInst.get(), idx, val);
-            }
-        }
-    }
-    /** Traps to handle specified fault. */
-    void trap(const Fault &fault);
-
-  public:
-
-    // The register accessor methods provide the index of the
-    // instruction's operand (e.g., 0 or 1), not the architectural
-    // register index, to simplify the implementation of register
-    // renaming.  We find the architectural register index by indexing
-    // into the instruction's own operand index table.  Note that a
-    // raw pointer to the StaticInst is provided instead of a
-    // ref-counted StaticInstPtr to redice overhead.  This is fine as
-    // long as these methods don't copy the pointer into any long-term
-    // storage (which is pretty hard to imagine they would have reason
-    // to do).
-
-    RegVal
-    getRegOperand(const StaticInst *si, int idx) override
-    {
-        const PhysRegIdPtr reg = renamedSrcIdx(idx);
-        if (reg->is(InvalidRegClass))
-            return 0;
-        return cpu->getReg(reg, threadNumber);
-    }
-
-    void
-    getRegOperand(const StaticInst *si, int idx, void *val) override
-    {
-        const PhysRegIdPtr reg = renamedSrcIdx(idx);
-        if (reg->is(InvalidRegClass))
-            return;
-        cpu->getReg(reg, val, threadNumber);
-    }
-
-    void *
-    getWritableRegOperand(const StaticInst *si, int idx) override
-    {
-        return cpu->getWritableReg(renamedDestIdx(idx), threadNumber);
-    }
-
-    /** @todo: Make results into arrays so they can handle multiple dest
-     *  registers.
-     */
-    void
-    setRegOperand(const StaticInst *si, int idx, RegVal val) override
-    {
-        const PhysRegIdPtr reg = renamedDestIdx(idx);
-        if (reg->is(InvalidRegClass))
-            return;
-        cpu->setReg(reg, val, threadNumber);
-        setResult(reg->regClass(), val);
-    }
-
-    void
-    setRegOperand(const StaticInst *si, int idx, const void *val) override
-    {
-        const PhysRegIdPtr reg = renamedDestIdx(idx);
-        if (reg->is(InvalidRegClass))
-            return;
-        cpu->setReg(reg, val, threadNumber);
-        setResult(reg->regClass(), val);
-    }
 };
 
-} // namespace o3
-} // namespace gem5
+template<class Impl>
+Fault
+BaseDynInst<Impl>::initiateMemRead(Addr addr, unsigned size,
+                                   Request::Flags flags,
+                                   const std::vector<bool> &byte_enable)
+{
+    assert(byte_enable.empty() || byte_enable.size() == size);
+    return cpu->pushRequest(
+            dynamic_cast<typename DynInstPtr::PtrType>(this),
+            /* ld */ true, nullptr, size, addr, flags, nullptr, nullptr,
+            byte_enable);
+}
 
-#endif // __CPU_O3_DYN_INST_HH__
+template<class Impl>
+Fault
+BaseDynInst<Impl>::initiateHtmCmd(Request::Flags flags)
+{
+    return cpu->pushRequest(
+            dynamic_cast<typename DynInstPtr::PtrType>(this),
+            /* ld */ true, nullptr, 8, 0x0ul, flags, nullptr, nullptr);
+}
+
+template<class Impl>
+Fault
+BaseDynInst<Impl>::writeMem(uint8_t *data, unsigned size, Addr addr,
+                            Request::Flags flags, uint64_t *res,
+                            const std::vector<bool> &byte_enable)
+{
+    assert(byte_enable.empty() || byte_enable.size() == size);
+    return cpu->pushRequest(
+            dynamic_cast<typename DynInstPtr::PtrType>(this),
+            /* st */ false, data, size, addr, flags, res, nullptr,
+            byte_enable);
+}
+
+template<class Impl>
+Fault
+BaseDynInst<Impl>::initiateMemAMO(Addr addr, unsigned size,
+                                  Request::Flags flags,
+                                  AtomicOpFunctorPtr amo_op)
+{
+    // atomic memory instructions do not have data to be written to memory yet
+    // since the atomic operations will be executed directly in cache/memory.
+    // Therefore, its `data` field is nullptr.
+    // Atomic memory requests need to carry their `amo_op` fields to cache/
+    // memory
+    return cpu->pushRequest(
+            dynamic_cast<typename DynInstPtr::PtrType>(this),
+            /* atomic */ false, nullptr, size, addr, flags, nullptr,
+            std::move(amo_op));
+}
+
+#endif // __CPU_BASE_DYN_INST_HH__

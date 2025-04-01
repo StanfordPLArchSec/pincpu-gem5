@@ -58,6 +58,12 @@ namespace X86ISA
     const uint8_t RX = RexPrefix;
     const uint8_t V2 = Vex2Prefix;
     const uint8_t V3 = Vex3Prefix;
+    const uint8_t UR = Unrestricted;
+    const uint8_t HF = HfiStructured;
+    const uint8_t HF1 = HfiStructured1;
+    const uint8_t HF2 = HfiStructured2;
+    const uint8_t HF3 = HfiStructured3;
+    const uint8_t HF4 = HfiStructured4;
 
     //These table identifies whether a byte is a prefix, and if it is,
     //which prefix it is.
@@ -91,7 +97,7 @@ namespace X86ISA
 /*   3*/ 0 , 0 , 0 , 0 , 0 , 0 , SS, 0 , 0 , 0 , 0 , 0 , 0 , 0 , DS, 0,
 /*   4*/ RX, RX, RX, RX, RX, RX, RX, RX, RX, RX, RX, RX, RX, RX, RX, RX,
 /*   5*/ 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0,
-/*   6*/ 0 , 0 , 0 , 0 , FS, GS, OO, AO, 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0,
+/*   6*/ 0 , 0 , 0 , 0 , FS, HF1, OO, AO, 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0,
 /*   7*/ 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0,
 /*   8*/ 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0,
 /*   9*/ 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0,
