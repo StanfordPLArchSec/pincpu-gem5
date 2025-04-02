@@ -183,8 +183,9 @@ void main_event_loop(void) {
 
           case Unmap:
             {
-                if (munmap((void *) msg.map.vaddr, 0x1000) < 0) {
-                    printf_("error: munmap failed (%d): vaddr=%p\n", errno, msg.map.vaddr);
+                if (munmap((void *) msg.map.vaddr, msg.map.size) < 0) {
+                    printf_("error: munmap failed (%d): vaddr=%p size=0x%x\n",
+                            errno, msg.map.vaddr, msg.map.size);
                     pinop_abort();
                 }
                 printf_("unmapped page: %p\n", (void*) msg.map.vaddr);
