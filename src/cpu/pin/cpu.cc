@@ -368,6 +368,8 @@ CPU::mapCode()
             it.resetFault();
             continue;
         }
+        DPRINTF(Pin, "Mapping in code range vaddr=%#x paddr=%#x size=%#x\n",
+                range.vaddr, range.paddr, range.size);
         Message msg;
         msg.type = Message::Map;
         msg.map.vaddr = range.vaddr;
@@ -748,8 +750,8 @@ CPU::handlePageFault(Addr vaddr)
 
     // Send ranges over.
     for (const Entry &e : mappings) {
-        DPRINTF(Pin, "Mapping vaddr=%#x paddr=%#x size=%#x\n",
-                e.vaddr, e.paddr, e.size);
+        DPRINTF(Pin, "Mapping vaddr=%#x paddr=%#x size=%#x prot=%#x\n",
+                e.vaddr, e.paddr, e.size, e.prot);
         Message msg;
         msg.type = Message::Map;
         msg.map.vaddr = e.vaddr;
@@ -760,34 +762,6 @@ CPU::handlePageFault(Addr vaddr)
         msg.recv(respFd);
         panic_if(msg.type != Message::Ack, "unexpected response\n");        
     }
-    
-#if 0
-    const auto ptr = tc->getMMUPtr()->translateFunctional(vaddr, 0x1000, tc, BaseMMU::Read, 0);
-    assert(ptr);
-    bool handled = false;
-    for (const TranslationGen::Range &range : *ptr) {
-        DPRINTF(Pin, "Handling page fault: vaddr=%x paddr=%x size=%i fault=%s\n", range.vaddr, range.paddr, range.size, range.fault);
-        assert(range.size == 0x1000);
-        if (range.fault != NoFault) {
-            panic("Page fault: vaddr=%x fault=%s\n", range.vaddr, range.fault->name());
-        }
-
-        const MemState& mem_state = *tc->getProcessPtr()->memState;
-        const VMA& vma = mem_state.getVMA(vaddr);
-    
-        Message msg;
-        msg.type = Message::Map;
-        msg.map.vaddr = range.vaddr;
-        msg.map.paddr = range.paddr;
-        msg.send(reqFd);
-        msg.recv(respFd);
-        panic_if(msg.type != Message::Ack, "unexpected response\n");
-
-        handled = true;
-    }
-
-    panic_if(!handled, "didn't handle page fault\n");
-#endif
 }
 
 Tick
@@ -826,19 +800,26 @@ CPU::handleSyscall()
 
     tc->getSystemPtr()->workload->syscall(tc);
 
-
     // If we unmapped any pages, then tell pin that here.
-    MemState& mem_state = *tc->getProcessPtr()->memState;
-    for (Addr vaddr : mem_state.unmapped) {
-        DPRINTF(Pin, "Pin: unmapping vaddr %#x\n", vaddr);
+    auto& unmapped = tc->getProcessPtr()->memState->unmapped;
+    auto unmapped_it = unmapped.begin();
+    while (unmapped_it != unmapped.end()) {
+        const Addr vbase = *unmapped_it;
+        Addr vsize = 0x1000;
+        for (++unmapped_it;
+             unmapped_it != unmapped.end() && *unmapped_it == vbase + vsize;
+             ++unmapped_it, vsize += 0x1000)
+            ;
+        DPRINTF(Pin, "Pin: unmapping vaddr %#x-%#x\n", vbase, vbase + vsize);
         Message msg;
         msg.type = Message::Unmap;
-        msg.map.vaddr = vaddr;
+        msg.map.vaddr = vbase;
+        msg.map.size = vsize;
         msg.send(reqFd);
         msg.recv(respFd);
         panic_if(msg.type != Message::Ack, "unexpected response\n");
     }
-    mem_state.unmapped.clear();
+    unmapped.clear();
 
     // FIXME: Need to cleanly exit. 
 }
