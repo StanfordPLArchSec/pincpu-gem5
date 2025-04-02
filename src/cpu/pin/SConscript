@@ -120,6 +120,9 @@ if env['CONF']['BUILD_ISA']:
             'tools/bbhist.cc',
             'tools/sysbreak.cc',
             'tools/pchistory.cc',
+            # 'tools/memhist.cc',
+            'tools/addrhist.cc',
+            'tools/addrcount.cc',
         ],
         tags = 'pin',
     )
