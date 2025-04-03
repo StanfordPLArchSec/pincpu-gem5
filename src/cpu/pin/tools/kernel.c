@@ -3,7 +3,6 @@
 #include <sys/syscall.h>
 #include <stddef.h>
 #include <fcntl.h>
-#include <stdio.h>
 #include <sys/mman.h>
 #include <inttypes.h>
 #include <sys/prctl.h>
@@ -40,6 +39,9 @@ do_assert_failure(const char *file, int line, const char *desc)
     printf_("%s:%d: assertion failed: %s\n", file, line, desc);
 }
 
+#ifdef assert
+# undef assert
+#endif
 #define assert(pred) \
     do {             \
     if (!(pred))                                        \
@@ -121,6 +123,100 @@ void msg_read(Message *msg) {
 
 void msg_write(const Message *msg) {
     write_all(resp_fd, msg, sizeof *msg);
+}
+
+bool
+getline(int fd, char *buf, size_t size)
+{
+    assert(size > 0);
+    --size; // Reserve one byte for NUL.
+    while (true) {
+        char c;
+        ssize_t bytes_read = read(fd, &c, 1);
+        if (bytes_read < 0) {
+            err("read: /proc/self/maps");
+            pinop_abort();
+        }
+        if (bytes_read == 0)
+            return false;
+        // Only copy the byte if we have space.
+        if (size > 0) {
+            *buf++ = c;
+            --size;
+        }
+        if (c == '\n') {
+            *buf = '\0';
+            return true;
+        }
+    }
+}
+
+char *
+strchr(char *s, char c)
+{
+    while (*s) {
+        if (*s == c)
+            return s;
+        ++s;
+    }
+    return NULL;
+}
+
+char *
+strsep(char **stringp, char delim)
+{
+    char *result = *stringp;
+    if (result) {
+        char *s = strchr(result, delim);
+        if (s)
+            *s++ = '\0';
+        *stringp = s;
+    }
+    return result;
+}
+
+int
+hextoint(char c)
+{
+    if ('0' <= c && c <= '9')
+        return c - '0';
+    if ('a' <= c && c <= 'f')
+        return c - 'a' + 10;
+    if ('A' <= c && c <= 'F')
+        return c - 'A' + 10;
+    printf_("bad hex digit: %c\n", c);
+    pinop_abort();
+}
+
+uint64_t
+parse_hex_u64(const char *s)
+{
+    uint64_t x = 0;
+    while (*s) {
+        x *= 16;
+        x += hextoint(*s);
+        ++s;
+    }
+    return x;
+}
+
+char *
+maps_get_line_for_addr(int fd, char *buf, size_t size, uint64_t addr)
+{
+    while (getline(fd, buf, size)) {
+        printf_("%s\n", buf);
+        char *s = buf;
+        const char *begin_s = strsep(&s, '-');
+        const char *end_s = strsep(&s, ' ');
+        assert(begin_s && end_s);
+        const uint64_t begin = parse_hex_u64(begin_s);
+        const uint64_t end = parse_hex_u64(end_s);
+        if (begin <= addr && addr < end) {
+            // Found a match!
+            return s;
+        }
+    }
+    return NULL;
 }
 
 void main_event_loop(void) {

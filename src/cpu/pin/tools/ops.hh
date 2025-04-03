@@ -61,7 +61,7 @@ void pinop_get_reqpath(char *data, size_t size);
 void pinop_get_resppath(char *data, size_t size);
 void pinop_get_mempath(char *data, size_t size);
 void pinop_exit(int code);
-void pinop_abort(const char *msg, size_t line);
+__attribute__((noreturn)) void pinop_abort(const char *msg, size_t line);
 void pinop_resetuser(void);
 void pinop_run(struct RunResult *result);
 void pinop_set_vsyscall_base(void *virt, void *phys);

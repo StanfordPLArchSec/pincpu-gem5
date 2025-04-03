@@ -398,10 +398,12 @@ HandleOp_RUN(const CONTEXT *kernel_ctx_ptr, ADDRINT next_pc)
     std::abort(); // TODO: UNREACHABLE
 }
 
+PinRegFile regfile;
+
 static void
 HandleOp_SET_REGS(const PinRegFile *user_regfile_ptr)
 {
-    PinRegFile rf;
+    PinRegFile &rf = regfile;
     if (PIN_SafeCopy(&rf, user_regfile_ptr, sizeof rf) != sizeof rf) {
         std::cerr << "CLIENT: Failed to copy regfile\n";
         Abort();
@@ -446,13 +448,13 @@ HandleOp_SET_REGS(const PinRegFile *user_regfile_ptr)
     set_reg(REG_SEG_GS_BASE, rf.gs_base);
 
     dbgs() << "DEBUG: setting REG_SEG_FS_BASE to 0x" << std::hex << rf.fs_base << "\n";
+    dbgs() << "DEBUG: setting REG_SEG_GS_BASE to 0x" << std::hex << rf.gs_base << "\n";
 }
 
 static void
 HandleOp_GET_REGS(PinRegFile *user_regfile_ptr)
 {
-    PinRegFile rf;
-    std::memset(&rf, 0, sizeof rf);
+    PinRegFile &rf = regfile;
 
     const auto get_reg = [] (REG reg, auto &value) {
         value = PIN_GetContextReg(&user_ctx, reg);

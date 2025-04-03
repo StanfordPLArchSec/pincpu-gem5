@@ -97,6 +97,9 @@ def get_processes(args):
         process.executable = wrkld
         process.cwd = os.getcwd()
         process.gid = os.getgid()
+        process.input = "/dev/stdin"
+        process.output = "/dev/stdout"
+        process.errout = "/dev/stderr"
 
         if args.env:
             with open(args.env) as f:

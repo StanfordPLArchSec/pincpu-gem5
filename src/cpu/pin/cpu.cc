@@ -25,6 +25,37 @@
 #include "sim/sim_exit.hh"
 #include "arch/x86/utility.hh"
 
+#define HFI_CODE_RANGE(X, i)                    \
+    X(metadata.code_ranges[i - 1].executable, LINEAR_CODERANGE_##i##_EXECUTABLE) \
+    X(metadata.code_ranges[i - 1].base_mask, LINEAR_CODERANGE_##i##_BASE_MASK) \
+    X(metadata.code_ranges[i - 1].ignore_mask, LINEAR_CODERANGE_##i##_IGNORE_MASK)
+    
+#define HFI_CODE_RANGES(X)                      \
+    HFI_CODE_RANGE(X, 1)                        \
+    HFI_CODE_RANGE(X, 2)
+    
+#define HFI_DATA_RANGE(X, i)                    \
+    X(metadata.data_ranges[i - 1].readable, LINEAR_RANGE_##i##_READABLE) \
+    X(metadata.data_ranges[i - 1].writeable, LINEAR_RANGE_##i##_WRITEABLE) \
+    X(metadata.data_ranges[i - 1].rangesizetype, LINEAR_RANGE_##i##_RANGESIZETYPE) \
+    X(metadata.data_ranges[i - 1].base_address_base_mask, LINEAR_RANGE_##i##_BASE_ADDRESS_BASE_MASK) \
+    X(metadata.data_ranges[i - 1].offset_limit_ignore_mask, LINEAR_RANGE_##i##_OFFSET_LIMIT_IGNORE_MASK)
+    
+#define HFI_DATA_RANGES(X)                       \
+    HFI_DATA_RANGE(X, 1)                         \
+    HFI_DATA_RANGE(X, 2)                         \
+    HFI_DATA_RANGE(X, 3)                         \
+    HFI_DATA_RANGE(X, 4)
+        
+#define HFI_STATE(X)                             \
+    X(metadata.is_trusted_sandbox, IS_TRUSTED_SANDBOX)    \
+    X(inside_sandbox, INSIDE_SANDBOX)       \
+    X(metadata.exit_sandbox_handler, EXIT_SANDBOX_HANDLER)   \
+    X(exit_reason, EXIT_REASON)                              \
+    X(exit_location, EXIT_LOCATION)                          \
+    HFI_DATA_RANGES(X)                              \
+    HFI_CODE_RANGES(X)
+
 namespace gem5
 {
 
@@ -517,6 +548,11 @@ CPU::syncStateToPin(bool full)
     rf.fs_base = tc->readMiscRegNoEffect(misc_reg::FsBase);
     rf.gs_base = tc->readMiscRegNoEffect(misc_reg::GsBase);
 
+    // HFI registers.
+#define X(rf_name, misc_name) rf.hfi.rf_name = tc->readMiscRegNoEffect(misc_reg::HFI_##misc_name);
+    HFI_STATE(X)
+#undef X
+
     // Send message.
     msg.send(reqFd);
     msg.recv(respFd);
@@ -616,7 +652,12 @@ CPU::syncStateFromPin(bool full)
     tc->setMiscRegNoEffect(misc_reg::Fs, rf.fs);
     tc->setMiscRegNoEffect(misc_reg::Gs, rf.gs);
     tc->setMiscRegNoEffect(misc_reg::FsBase, rf.fs_base);
-    tc->setMiscRegNoEffect(misc_reg::GsBase, rf.gs_base);    
+    tc->setMiscRegNoEffect(misc_reg::GsBase, rf.gs_base);
+
+    // HFI registers.
+#define X(rf_name, misc_name) tc->setMiscRegNoEffect(misc_reg::HFI_##misc_name, rf.hfi.rf_name);
+    HFI_STATE(X)
+#undef X
 }
 
 void
