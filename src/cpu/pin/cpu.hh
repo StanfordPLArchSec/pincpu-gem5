@@ -28,6 +28,7 @@ class CPU final : public BaseCPU
     void serializeThread(CheckpointOut &cp, ThreadID tid) const override;
     
     void activateContext(ThreadID tid = 0) override;
+    void suspendContext(ThreadID tid) override;
 
     class PinRequestPort final : public RequestPort
     {
@@ -72,6 +73,8 @@ class CPU final : public BaseCPU
     std::string pinTool;
     std::vector<std::string> pinArgs;
     std::vector<std::string> pinToolArgs;
+    std::string kernoutPath;
+    std::string kernerrPath;
     
     // TODO: Consider abstracting the Pin process into its own class.
     pid_t pinPid = -1;

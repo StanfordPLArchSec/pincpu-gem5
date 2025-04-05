@@ -152,6 +152,8 @@ CPU::haltContext()
             static_cast<double>(tms.tms_cstime) / tick,
 	    static_cast<double>(tms.tms_utime) / tick,
 	    static_cast<double>(tms.tms_stime) / tick);
+
+    _status = Idle;
 }
 
 bool
@@ -248,6 +250,8 @@ CPU::init()
 {
     BaseCPU::init();
     fatal_if(numThreads != 1, "Pin: Multithreading not supported");
+    kernoutPath = tc->getProcessPtr()->absolutePath(simout.resolve("kernout.txt"), true);
+    kernerrPath = tc->getProcessPtr()->absolutePath(simout.resolve("kernerr.txt"), true);
     warn("Pin::CPU::init not complete\n");
 }
 
@@ -302,15 +306,13 @@ CPU::startup()
     } else if (pinPid == 0) {
         // Create log file for this fucking mess.
         // It will be for the kernel.
-        const std::string kernout_path = simout.resolve("kernout.txt");
-        const int kernout_fd = open(kernout_path.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
+        const int kernout_fd = open(kernoutPath.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
         if (kernout_fd < 0)
             panic("Failed to create kernel.log\n");
         if (dup2(kernout_fd, STDOUT_FILENO) < 0)
             panic("dup2 failed\n");
 
-        const std::string kernerr_path = simout.resolve("kernerr.txt");
-        const int kernerr_fd = open(kernerr_path.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
+        const int kernerr_fd = open(kernerrPath.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
         if (kernerr_fd < 0)
             panic("Failed to create kernerr.txt");
         if (dup2(kernerr_fd, STDERR_FILENO) < 0)
@@ -421,6 +423,23 @@ CPU::activateContext(ThreadID tid)
 
     schedule(tickEvent, clockEdge(Cycles(0)));
     _status = Running;
+}
+
+void
+CPU::suspendContext(ThreadID tid)
+{
+    assert(tid == 0);
+    assert(thread);
+
+    if (_status == Idle)
+        return;
+
+    assert(_status == Running);
+
+    if (tickEvent.scheduled())
+        deschedule(tickEvent);
+
+    _status = Idle;
 }
 
 void

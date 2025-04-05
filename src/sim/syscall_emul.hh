@@ -1012,7 +1012,11 @@ lseekFunc(SyscallDesc *desc, ThreadContext *tc,
 {
     auto p = tc->getProcessPtr();
 
-    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>((*p->fds)[tgt_fd]);
+    auto fdp = (*p->fds)[tgt_fd];
+    if (std::dynamic_pointer_cast<PipeFDEntry>(fdp))
+        return -ESPIPE;
+
+    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>(fdp);
     if (!ffdp)
         return -EBADF;
     int sim_fd = ffdp->getSimFD();
@@ -1804,7 +1808,12 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
     pp->ppid = (flags & OS::TGT_CLONE_THREAD) ? p->ppid() : p->pid();
     pp->useArchPT = p->useArchPT;
     pp->kvmInSE = p->kvmInSE;
+#if 0
     Process *cp = pp->create();
+#else
+    Process *cp = Process::tryLoaders(*pp, p->objFile);
+    fatal_if(!cp, "Unknown error creating process object.");
+#endif
     // TODO: there is no way to know when the Process SimObject is done with
     // the params pointer. Both the params pointer (pp) and the process
     // pointer (cp) are normally managed in python and are never cleaned up.
@@ -2408,6 +2417,7 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
     pp->cwd.assign(p->tgtCwd);
     pp->system = p->system;
     pp->release = p->release;
+    pp->maxStackSize = p->memState->getMaxStackSize();
     /**
      * Prevent process object creation with identical PIDs (which will trip
      * a fatal check in Process constructor). The execve call is supposed to
@@ -2437,6 +2447,7 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
 
     tc->clearArchRegs();
     tc->setProcessPtr(new_p);
+    tc->getCpuPtr()->startup();
     new_p->assignThreadContext(tc->contextId());
     new_p->init();
     new_p->initState();

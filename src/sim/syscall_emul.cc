@@ -321,7 +321,11 @@ _llseekFunc(SyscallDesc *desc, ThreadContext *tc,
 {
     auto p = tc->getProcessPtr();
 
-    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>((*p->fds)[tgt_fd]);
+    auto fdp = (*p->fds)[tgt_fd];
+    if (std::dynamic_pointer_cast<PipeFDEntry>(fdp))
+        return -ESPIPE;
+
+    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>(fdp);
     if (!ffdp)
         return -EBADF;
     int sim_fd = ffdp->getSimFD();
@@ -652,6 +656,16 @@ fcntlFunc(SyscallDesc *desc, ThreadContext *tc,
         int arg = varargs.get<int>();
         int rv = fcntl(sim_fd, cmd, arg);
         return (rv == -1) ? -errno : rv;
+      }
+
+      case F_DUPFD: {
+          int min_new_fd = varargs.get<int>();
+          // Find least available file descriptor greater than or equal
+          // to min_new_fd.
+          int new_fd;
+          for (new_fd = min_new_fd; (*p->fds)[new_fd]; ++new_fd)
+              ;
+          return dup2Func(desc, tc, tgt_fd, new_fd);
       }
 
       default:
