@@ -50,8 +50,12 @@ def make_process(args) -> Process:
     process.gid = os.getgid()
     process.maxStackSize = args.max_stack_size
 
-    # Clear out the environment.
-    process.env = []
+    # Clear out the environment, unless it's set.
+    if args.env:
+        with open(args.env) as f:
+            process.env = [line.rstrip() for line in f]
+    else:
+        process.env = []
 
     process.cmd = [args.cmd, *args.args]
 
@@ -60,5 +64,11 @@ def make_process(args) -> Process:
         else os.path.join(args.chdir, args.stdin)
     process.output = args.stdout
     process.errout = args.stderr
+
+    # Set uid, gid, euid, egid.
+    process.uid = os.getuid()
+    process.euid = os.geteuid()
+    process.gid = os.getgid()
+    process.egid = os.getegid()
 
     return process
