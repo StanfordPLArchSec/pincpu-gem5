@@ -40,9 +40,9 @@ class Process(SimObject):
     def map(self, vaddr, paddr, size, cacheable=False):
         pass
 
-    input = Param.String("cin", "filename for stdin")
-    output = Param.String("cout", "filename for stdout")
-    errout = Param.String("cerr", "filename for stderr")
+    input = Param.String("/dev/stdin", "filename for stdin")
+    output = Param.String("/dev/stdout", "filename for stdout")
+    errout = Param.String("/dev/stderr", "filename for stderr")
     system = Param.System(Parent.any, "system process will run on")
     useArchPT = Param.Bool(
         "false",

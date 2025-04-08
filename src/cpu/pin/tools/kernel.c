@@ -367,6 +367,10 @@ void main_event_loop(void) {
                 }
             }
             break;
+
+          case Abort:
+            pinop_abort();
+            break;
               
           default:
             printf_("error: bad message type (%d)\n", msg.type);

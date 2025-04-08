@@ -28,7 +28,8 @@ class CPU final : public BaseCPU
     void serializeThread(CheckpointOut &cp, ThreadID tid) const override;
     
     void activateContext(ThreadID tid = 0) override;
-    void suspendContext(ThreadID tid) override;
+    void suspendContext(ThreadID tid = 0) override;
+    void haltContext(ThreadID tid = 0) override;
 
     class PinRequestPort final : public RequestPort
     {
@@ -118,8 +119,6 @@ class CPU final : public BaseCPU
     Tick doMMIOAccess(Addr paddr, void *data, int size, bool write);
 
     void handleCPUID();
-
-    void haltContext();
 
     bool isPinRunning() const;
 

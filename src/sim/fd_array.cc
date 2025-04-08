@@ -47,17 +47,26 @@
 namespace gem5
 {
 
+static std::string
+absolutePath(const std::string &s)
+{
+    char path[PATH_MAX];
+    if (realpath(s.c_str(), path) == nullptr)
+        panic("realpath: %s: %s\n", strerror(errno), s);
+    return path;
+}
+
 FDArray::FDArray(std::string const& input, std::string const& output,
                  std::string const& errout)
     :  _fdArray(), _input(input), _output(output), _errout(errout),
       _imap {{"",       -1},
              {"cin",    STDIN_FILENO},
-             {"stdin",  STDIN_FILENO}},
+             {"/dev/stdin",  STDIN_FILENO}},
       _oemap{{"",       -1},
              {"cout",   STDOUT_FILENO},
-             {"stdout", STDOUT_FILENO},
+             {"/dev/stdout", STDOUT_FILENO},
              {"cerr",   STDERR_FILENO},
-             {"stderr", STDERR_FILENO}}
+             {"/dev/stderr", STDERR_FILENO}}
 {
     int sim_fd;
     std::map<std::string, int>::iterator it;
@@ -71,7 +80,7 @@ FDArray::FDArray(std::string const& input, std::string const& output,
     else
         sim_fd = openInputFile(input);
 
-    auto ffd = std::make_shared<FileFDEntry>(sim_fd, O_RDONLY, input, false);
+    auto ffd = std::make_shared<FileFDEntry>(sim_fd, O_RDONLY, absolutePath(input), false);
     _fdArray[STDIN_FILENO] = ffd;
 
     /**
@@ -84,7 +93,7 @@ FDArray::FDArray(std::string const& input, std::string const& output,
         sim_fd = openOutputFile(output);
 
     ffd = std::make_shared<FileFDEntry>(sim_fd, O_WRONLY | O_CREAT | O_TRUNC,
-                                        simout.resolve(output), false);
+                                        absolutePath(simout.resolve(output)), false);
     _fdArray[STDOUT_FILENO] = ffd;
 
     if (output == errout)
@@ -95,7 +104,7 @@ FDArray::FDArray(std::string const& input, std::string const& output,
         sim_fd = openOutputFile(errout);
 
     ffd = std::make_shared<FileFDEntry>(sim_fd, O_WRONLY | O_CREAT | O_TRUNC,
-                                        simout.resolve(errout), false);
+                                        absolutePath(simout.resolve(errout)), false);
     _fdArray[STDERR_FILENO] = ffd;
 }
 

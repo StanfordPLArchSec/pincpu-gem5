@@ -184,6 +184,13 @@ class Linux : public OperatingSystem
 #endif
     };
 
+    // For pselect6().
+#define LINUX__SIGSET_NWORDS (1024 / (8 * sizeof (unsigned long int)))
+    typedef struct
+    {
+        unsigned long int __val[LINUX__SIGSET_NWORDS];
+    } sigset_t;
+
     //@{
     /// ioctl() command codes.
     static const unsigned TGT_TCGETS     = 0x5401;
