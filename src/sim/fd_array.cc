@@ -454,4 +454,12 @@ FDArray::unserialize(CheckpointIn &cp, Process* process_ptr) {
     }
 }
 
+std::shared_ptr<FDEntry>
+FDArray::tryGetFDEntry(int tgt_fd)
+{
+    if (tgt_fd < 0 || tgt_fd >= getSize())
+        return nullptr;
+    return getFDEntry(tgt_fd);
+}
+
 } // namespace gem5
