@@ -77,7 +77,7 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
     {  24, "sched_yield", ignoreWarnOnceFunc },
     {  25, "mremap", mremapFunc<X86Linux64> },
     {  26, "msync" },
-    {  27, "mincore" },
+    {  27, "mincore", mincoreFunc<X86Linux64> },
     {  28, "madvise", ignoreFunc },
     {  29, "shmget" },
     {  30, "shmat" },

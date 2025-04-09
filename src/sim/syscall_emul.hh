@@ -3379,6 +3379,27 @@ getresgidFunc(SyscallDesc *desc, ThreadContext *tc,
     return 0;
 }
 
+template <typename OS>
+SyscallReturn
+mincoreFunc(SyscallDesc *desc, ThreadContext *tc,
+            VPtr<> addr, typename OS::size_t length, VPtr<> vec)
+{
+    // TODO: Check addr for page alignment.
+    // TODO: Check vec for validity.
+
+    // Round up the length.
+    const auto p = tc->getProcessPtr();
+    const auto page_bytes = p->pTable->pageSize();
+    length = roundUp(length, page_bytes);
+
+    // Pretend all pages are resident in RAM.
+    TypedBufferArg<uint8_t> vec_buf(vec, length / page_bytes);
+    for (size_t i = 0; i < length / page_bytes; ++i)
+        vec_buf[i] = 1;
+    vec_buf.copyOut(SETranslatingPortProxy(tc));
+
+    return 0;
+}
 
 
 } // namespace gem5
