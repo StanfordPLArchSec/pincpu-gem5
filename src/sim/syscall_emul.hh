@@ -2441,6 +2441,11 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
     pp->system = p->system;
     pp->release = p->release;
     pp->maxStackSize = p->memState->getMaxStackSize();
+    pp->useArchPT = p->useArchPT;
+    pp->zeroPages = p->zeroPages;
+    pp->env = p->envp;
+    pp->drivers = p->drivers;
+    // TODO: Need to also copy these on clone!!!!
     /**
      * Prevent process object creation with identical PIDs (which will trip
      * a fatal check in Process constructor). The execve call is supposed to
@@ -2468,9 +2473,12 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
 
     *new_p->sigchld = true;
 
+    // Need to halt thread context so Pin can do proper cleanup.
+    tc->halt();
+    tc->getMMUPtr()->flushAll();
+    assert(tc->status() != ThreadContext::Active);
     tc->clearArchRegs();
     tc->setProcessPtr(new_p);
-    tc->getCpuPtr()->startup();
     new_p->assignThreadContext(tc->contextId());
     new_p->init();
     new_p->initState();
@@ -3344,6 +3352,35 @@ setuidFunc(SyscallDesc *desc, ThreadContext *tc, typename OS::uid_t uid)
     panic_if(uid != p->uid(), "setuid unimplemented\n");
     return 0;
 }
+
+template <typename OS>
+SyscallReturn
+getresuidFunc(SyscallDesc *desc, ThreadContext *tc,
+              VPtr<typename OS::uid_t> ruid,
+              VPtr<typename OS::uid_t> euid,
+              VPtr<typename OS::uid_t> suid)
+{
+    const auto p = tc->getProcessPtr();
+    *ruid = p->uid();
+    *euid = p->uid();
+    *suid = p->uid();
+    return 0;
+}
+
+template <typename OS>
+SyscallReturn
+getresgidFunc(SyscallDesc *desc, ThreadContext *tc,
+              VPtr<typename OS::gid_t> rgid,
+              VPtr<typename OS::gid_t> egid,
+              VPtr<typename OS::gid_t> sgid)
+{
+    const auto p = tc->getProcessPtr();
+    *rgid = p->gid();
+    *egid = p->gid();
+    *sgid = p->gid();
+    return 0;
+}
+
 
 
 } // namespace gem5
