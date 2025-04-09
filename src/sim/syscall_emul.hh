@@ -3014,9 +3014,9 @@ wait4Func(SyscallDesc *desc, ThreadContext *tc,
 
 success:
     // Set status to EXITED for WIFEXITED evaluations.
-    const int EXITED = 0;
+    // TODO: This should use a typed VPtr.
     BufferArg statusBuf(statPtr, sizeof(int));
-    *(int *)statusBuf.bufferPtr() = EXITED;
+    *(int *)statusBuf.bufferPtr() = iter->childStatus;
     statusBuf.copyOut(SETranslatingPortProxy(tc));
 
     // Return the child PID.

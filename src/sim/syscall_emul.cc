@@ -192,7 +192,13 @@ exitImpl(SyscallDesc *desc, ThreadContext *tc, bool group, int status)
     if (last_thread) {
         if (parent) {
             assert(tg_lead);
-            sys->signalList.push_back(BasicSignal(tg_lead, parent, SIGCHLD));
+            // TODO: Should use OS::TGT_SIGCHLD instead.
+            BasicSignal sig(tg_lead, parent, SIGCHLD);
+            int masked_status = status & 0xFF;
+            sig.childStatus = masked_status << 8;
+            assert(WIFEXITED(sig.childStatus) &&
+                   WEXITSTATUS(sig.childStatus) == masked_status);
+            sys->signalList.push_back(sig);
         }
 
         /**
