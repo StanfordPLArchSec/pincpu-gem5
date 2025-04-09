@@ -352,6 +352,8 @@ SyscallReturn getsocknameFunc(SyscallDesc *desc, ThreadContext *tc,
 SyscallReturn sched_getparamFunc(SyscallDesc *desc, ThreadContext *tc,
                                  int pid, VPtr<int> paramPtr);
 
+SyscallReturn epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags);
+
 template <class OS>
 SyscallReturn
 atSyscallPath(ThreadContext *tc, int dirfd, std::string &path)

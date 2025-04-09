@@ -43,6 +43,8 @@
 #include <fcntl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+// TODO: Shouldn't do this.
+#include <sys/epoll.h>
 
 #include <csignal>
 #include <iostream>
@@ -1507,6 +1509,19 @@ sched_getparamFunc(SyscallDesc *desc, ThreadContext *tc,
     warn_once("sched_getparam: pretending sched_priority is 0 for all PIDs\n");
     *paramPtr = 0;
     return 0;
+}
+
+SyscallReturn
+epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags)
+{
+    const int sim_fd = epoll_create1(flags);
+    const bool coe = flags & EPOLL_CLOEXEC;
+    // TODO: make it OS::TGT_EPOLL_CLOEXEC.
+    flags &= ~EPOLL_CLOEXEC;
+    const auto hbfdp = std::make_shared<HBFDEntry>(flags, sim_fd, coe);
+    auto p = tc->getProcessPtr();
+    const int tgt_fd = p->fds->allocFD(hbfdp);
+    return tgt_fd;
 }
 
 } // namespace gem5
