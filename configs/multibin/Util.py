@@ -51,7 +51,9 @@ def make_process(args) -> Process:
     process.maxStackSize = args.max_stack_size
 
     # Clear out the environment, unless it's set.
-    if args.env:
+    if args.env == "host":
+        process.env = [f"{key}={value}" for key, value in os.environ.items()]
+    elif args.env:
         with open(args.env) as f:
             process.env = [line.rstrip() for line in f]
     else:
