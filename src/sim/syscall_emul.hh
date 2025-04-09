@@ -751,15 +751,13 @@ ioctlFunc(SyscallDesc *desc, ThreadContext *tc,
     if (OS::isTtyReq(req))
         return -ENOTTY;
 
-    auto dfdp = std::dynamic_pointer_cast<DeviceFDEntry>((*p->fds)[tgt_fd]);
-    if (dfdp) {
+    if (auto dfdp = std::dynamic_pointer_cast<DeviceFDEntry>(p->fds->tryGetFDEntry(tgt_fd))) {
         EmulatedDriver *emul_driver = dfdp->getDriver();
         if (emul_driver)
             return emul_driver->ioctl(tc, req, addr);
     }
 
-    auto sfdp = std::dynamic_pointer_cast<SocketFDEntry>((*p->fds)[tgt_fd]);
-    if (sfdp) {
+    if (auto sfdp = std::dynamic_pointer_cast<SocketFDEntry>(p->fds->tryGetFDEntry(tgt_fd))) {
         int status;
 
         switch (req) {
