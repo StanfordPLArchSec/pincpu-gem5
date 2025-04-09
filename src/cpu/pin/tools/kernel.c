@@ -257,8 +257,8 @@ void main_event_loop(void) {
                 // printf_("mapping page: %p->%p 0x%lx\n", (void *) msg.map.vaddr, (void *) msg.map.paddr, msg.map.size);
                 void *map;
                 if ((map = mmap((void *) msg.map.vaddr, msg.map.size, msg.map.prot,
-                                MAP_SHARED | MAP_FIXED, mem_fd, msg.map.paddr)) == MAP_FAILED) {
-                    err("mmap failed: vaddr=%p size=%zu paddr=%p\n", msg.map.vaddr, msg.map.size, msg.map.paddr);
+                                MAP_SHARED | MAP_FIXED_NOREPLACE, mem_fd, msg.map.paddr)) == MAP_FAILED) {
+                    err("mmap failed: vaddr=%p size=%zu paddr=%p errno=%d\n", msg.map.vaddr, msg.map.size, msg.map.paddr, errno);
                     if (errno == ENOMEM)
                         diagnose_ENOMEM();
                     pinop_abort();
