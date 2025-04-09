@@ -112,7 +112,9 @@ normalize(const std::string& directory)
 
 Process::Process(const ProcessParams &params, EmulationPageTable *pTable,
                  loader::ObjectFile *obj_file)
-    : SimObject(params), system(params.system),
+    : SimObject(params),
+      params(params),
+      system(params.system),
       seWorkload(dynamic_cast<SEWorkload *>(system->workload)),
       useArchPT(params.useArchPT),
       kvmInSE(params.kvmInSE),
@@ -376,7 +378,7 @@ Process::deallocateMem(Addr vaddr, int64_t size)
                 // because it would unnecessarily zero out pages that
                 // were allocated for the first time.
                 SETranslatingPortProxy virt_mem(
-                    system->threads[0], SETranslatingPortProxy::Always);
+                    system->threads[contextIds.front()], SETranslatingPortProxy::Always);
                 const std::vector<uint8_t> zero_page(page_size, 0);
                 virt_mem.writeBlob(page_vaddr, zero_page.data(), page_size);
             }
@@ -578,6 +580,35 @@ Process::absolutePath(const std::string &filename, bool host_filesystem)
 Process *
 ProcessParams::create() const
 {
+    assert(!executable.empty());
+
+    // Check if this executable requires an interpreter (i.e., starts with a shebang).
+    FILE *f;
+    if ((f = fopen(executable.c_str(), "r")) == nullptr)
+        panic("fopen: %s: %s\n", executable, strerror(errno));
+    char shebang[2];
+    if (fread(shebang, 1, sizeof shebang, f) != 2)
+        panic("fread: error\n");
+    if (shebang[0] == '#' && shebang[1] == '!') {
+        char *line = nullptr;
+        size_t n = 0;
+        if (getline(&line, &n, f) < 0)
+            panic("getline: error\n");
+        if (char *newline = strchr(line, '\n'))
+            *newline = '\0';
+        if (strchr(line, ' '))
+            panic("argument to interpreter not supported yet!\n");
+        const std::string interpreter = line;
+        free(line);
+        ProcessParams params = *this;
+        // TODO: Should actually do p->checkPathRedirect()...
+        params.cmd[0] = params.executable;
+        params.executable = interpreter;
+        params.cmd.insert(params.cmd.begin(), params.executable);
+        return params.create();
+    }
+    
+    
     // If not specified, set the executable parameter equal to the
     // simulated system's zeroth command line parameter
     const std::string &exec = (executable == "") ? cmd[0] : executable;
