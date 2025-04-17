@@ -829,6 +829,9 @@ openatFunc(SyscallDesc *desc, ThreadContext *tc,
     if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
         return -EFAULT;
 
+    if (auto res = atSyscallPath<OS>(tc, tgt_dirfd, path); !res.successful())
+        return res;
+
 #ifdef __CYGWIN32__
     int host_flags = O_BINARY;
 #else
