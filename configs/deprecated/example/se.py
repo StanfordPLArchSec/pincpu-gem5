@@ -95,7 +95,8 @@ def get_processes(args):
     for wrkld in workloads:
         process = Process(pid=100 + idx)
         process.executable = wrkld
-        process.cwd = os.getcwd()
+        process.cwd = args.chdir
+        process.maxStackSize = args.max_stack_size
         process.gid = os.getgid()
 
         if args.env:
@@ -131,6 +132,8 @@ warn(
 )
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--chdir", default=os.getcwd(), help="Set working directory of simulated process")
+parser.add_argument("--max-stack-size", default="8MiB", help="Max stack size")
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
 
