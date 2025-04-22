@@ -153,6 +153,9 @@ args.options = " ".join(args.command[1:])
 if args.stdin[0] != "/":
     args.input = args.chdir + "/" + args.stdin
 
+if args.stdin[0] != "/":
+    args.input = args.chdir + "/" + args.stdin
+
 multiprocesses = []
 numThreads = 1
 
