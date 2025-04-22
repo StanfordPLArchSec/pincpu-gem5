@@ -134,6 +134,7 @@ warn(
 parser = argparse.ArgumentParser()
 parser.add_argument("--chdir", default=os.getcwd(), help="Set working directory of simulated process")
 parser.add_argument("--max-stack-size", default="8MiB", help="Max stack size")
+parser.add_argument("--stdin", default="/dev/null")
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
 
@@ -141,6 +142,9 @@ if "--ruby" in sys.argv:
     Ruby.define_options(parser)
 
 args = parser.parse_args()
+
+if args.stdin[0] != "/":
+    args.input = args.chdir + "/" + args.stdin
 
 multiprocesses = []
 numThreads = 1
