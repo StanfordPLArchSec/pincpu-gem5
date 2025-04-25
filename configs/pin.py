@@ -155,37 +155,5 @@ system.workload = SEWorkload.init_compatible(mp0_path)
 root = Root(full_system=False, system=system)
 m5.instantiate()
 exit_event = m5.simulate()
-print(exit_event, file=sys.stderr)
-exit(0)
-
-# Parse checkpoints file.
-simpoints = None
-with open(args.simpoints_json) as f:
-    simpoints = json.load(f)
-    simpoints = [types.SimpleNamespace(**simpoint) for simpoint in simpoints]
-    simpoints.sort(key=lambda simpoint: simpoint.inst_range[0])
-
-root = Root(full_system=False, system=system)
-# Simulation.run(args, root, system, CPUClass)
-
-
-def get_simpoint_start_inst(simpoint: dict) -> int:
-    return max(simpoint.inst_range[0] - args.simpoints_warmup, 0)
-
-
-cpu.simpoint_start_insts = [
-    get_simpoint_start_inst(simpoint) for simpoint in simpoints
-]
-print("cpu.simpoint_start_insts:", *cpu.simpoint_start_insts, file=sys.stderr)
-m5.instantiate()
-
-for simpoint in simpoints:
-    exit_event = m5.simulate()
-    exit_cause = exit_event.getCause()
-    if exit_cause != "simpoint starting point found":
-        print(f"Unexpected exit cause: {exit_cause}", file=sys.stderr)
-        exit(1)
-    # path = os.path.join(args.checkpoint_dir, name)
-    path = f"cpt.{simpoint.name}"
-    m5.checkpoint(path)
-    m5.stats.dump()
+print(f"[*] workload exited {exit_event.getCode()}", file=sys.stderr)
+exit(exit_event.getCode())
