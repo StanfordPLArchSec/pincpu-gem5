@@ -37,7 +37,7 @@ def make_parser() -> ArgumentParser:
         help="Path to Pin guest kernel",
     )
 
-    parser.add_argument("--stdin", default="/dev/null")
+    parser.add_argument("--stdin", default="/dev/stdin")
     parser.add_argument("--stdout", default="stdout.txt")
     parser.add_argument("--stderr", default="stderr.txt")
 
