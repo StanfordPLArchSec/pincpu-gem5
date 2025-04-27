@@ -42,6 +42,8 @@
 
 #include "cpu/o3/cpu.hh"
 
+#include <sys/resource.h>
+
 #include "cpu/activity.hh"
 #include "cpu/checker/cpu.hh"
 #include "cpu/checker/thread_context.hh"
@@ -52,6 +54,7 @@
 #include "cpu/thread_context.hh"
 #include "debug/Activity.hh"
 #include "debug/Drain.hh"
+#include "debug/Heartbeat.hh"
 #include "debug/O3CPU.hh"
 #include "debug/Quiesce.hh"
 #include "enums/MemoryMode.hh"
@@ -360,9 +363,31 @@ CPU::CPUStats::CPUStats(CPU *cpu)
 }
 
 void
+CPU::heartbeat() const
+{
+    static size_t prev_total_insts = 0;
+    constexpr size_t step = 1000000;
+    const auto get_interval = [] (size_t insts) -> size_t {
+        return insts / step;
+    };
+    if (get_interval(prev_total_insts) == get_interval(totalInsts()))
+        return;
+    prev_total_insts = totalInsts();
+
+    // Print heartbeat.
+    struct rusage ru;
+    if (getrusage(RUSAGE_SELF, &ru) < 0)
+        panic("heartbeat error: getrusage failed\n");
+    long mb = ru.ru_maxrss / 1024;
+    DPRINTF(Heartbeat, "Heartbeat O3CPU totalInsts=%u maxrss=%uMiB\n",
+            totalInsts(), mb);
+}
+
+void
 CPU::tick()
 {
     DPRINTF(O3CPU, "\n\nO3CPU: Ticking main, O3CPU.\n");
+    heartbeat();
     assert(!switchedOut());
     assert(drainState() != DrainState::Drained);
 
