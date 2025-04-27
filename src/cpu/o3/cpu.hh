@@ -586,6 +586,8 @@ class CPU : public BaseCPU
         statistics::Scalar quiesceCycles;
     } cpuStats;
 
+    void heartbeat() const;
+
   public:
     // hardware transactional memory
     void htmSendAbortSignal(ThreadID tid, uint64_t htm_uid,
