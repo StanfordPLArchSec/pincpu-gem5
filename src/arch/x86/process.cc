@@ -111,10 +111,12 @@ X86_64Process::X86_64Process(const ProcessParams &params,
     vsyscallPage.vgettimeofdayOffset = 0x0;
 
     Addr brk_point = roundUp(image.maxAddr(), PageBytes);
-    Addr stack_base = 0x7FFFFFFFF000ULL;
+    // [PinCPU] HACK
+    Addr stack_base = 0x6FFFFFFFF000ULL; // 0x7FFFFFFFF000ULL
     Addr max_stack_size = params.maxStackSize;
     Addr next_thread_stack_base = stack_base - max_stack_size;
-    Addr mmap_end = std::min<Addr>(0x7FFFF7FFF000ULL, next_thread_stack_base);
+    // [PinCPU] HACK
+    Addr mmap_end = std::min<Addr>(0x6FFFF7FFF000ULL /* 0x7FFFF7FFF000ULL */, next_thread_stack_base);
 
     memState = std::make_shared<MemState>(
             this, brk_point, stack_base, max_stack_size,
@@ -903,7 +905,8 @@ X86Process::argsInit(int pageSize,
         auxv.emplace_back(gem5::auxv::Clktck, 100);
         // This is the virtual address of the program header tables if they
         // appear in the executable image.
-        auxv.emplace_back(gem5::auxv::Phdr, elfObject->programHeaderTable());
+        auxv.emplace_back(gem5::auxv::Phdr,
+                          elfObject->programHeaderTable() + elfObject->bias());
         // This is the size of a program header entry from the elf file.
         auxv.emplace_back(gem5::auxv::Phent, elfObject->programHeaderSize());
         // This is the number of program headers from the original elf file.

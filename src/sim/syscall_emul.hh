@@ -86,6 +86,7 @@
 #include <cerrno>
 #include <memory>
 #include <string>
+#include <csignal>
 
 #include "arch/generic/tlb.hh"
 #include "base/intmath.hh"
@@ -350,6 +351,8 @@ SyscallReturn getsocknameFunc(SyscallDesc *desc, ThreadContext *tc,
 // Target sched_getparam() handler.
 SyscallReturn sched_getparamFunc(SyscallDesc *desc, ThreadContext *tc,
                                  int pid, VPtr<int> paramPtr);
+
+SyscallReturn epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags);
 
 template <class OS>
 SyscallReturn
@@ -750,15 +753,13 @@ ioctlFunc(SyscallDesc *desc, ThreadContext *tc,
     if (OS::isTtyReq(req))
         return -ENOTTY;
 
-    auto dfdp = std::dynamic_pointer_cast<DeviceFDEntry>((*p->fds)[tgt_fd]);
-    if (dfdp) {
+    if (auto dfdp = std::dynamic_pointer_cast<DeviceFDEntry>(p->fds->tryGetFDEntry(tgt_fd))) {
         EmulatedDriver *emul_driver = dfdp->getDriver();
         if (emul_driver)
             return emul_driver->ioctl(tc, req, addr);
     }
 
-    auto sfdp = std::dynamic_pointer_cast<SocketFDEntry>((*p->fds)[tgt_fd]);
-    if (sfdp) {
+    if (auto sfdp = std::dynamic_pointer_cast<SocketFDEntry>(p->fds->tryGetFDEntry(tgt_fd))) {
         int status;
 
         switch (req) {
@@ -1012,7 +1013,11 @@ lseekFunc(SyscallDesc *desc, ThreadContext *tc,
 {
     auto p = tc->getProcessPtr();
 
-    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>((*p->fds)[tgt_fd]);
+    auto fdp = (*p->fds)[tgt_fd];
+    if (std::dynamic_pointer_cast<PipeFDEntry>(fdp))
+        return -ESPIPE;
+
+    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>(fdp);
     if (!ffdp)
         return -EBADF;
     int sim_fd = ffdp->getSimFD();
@@ -1491,24 +1496,38 @@ newfstatatFunc(SyscallDesc *desc, ThreadContext *tc, int dirfd,
     if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
         return -EFAULT;
 
+    DPRINTF_SYSCALL(Verbose, "newfstatat: %s\n", path);
+
+    const bool empty_path = path.empty() && (flags & OS::TGT_AT_EMPTY_PATH);
     if (path.empty() && !(flags & OS::TGT_AT_EMPTY_PATH))
         return -ENOENT;
     flags = flags & ~OS::TGT_AT_EMPTY_PATH;
 
     warn_if(flags != 0, "newfstatat: Flag bits %#x not supported.", flags);
 
-    // Modifying path from the directory descriptor
-    if (auto res = atSyscallPath<OS>(tc, dirfd, path); !res.successful()) {
-        return res;
-    }
-
-    auto p = tc->getProcessPtr();
-
-    // Adjust path for cwd and redirection
-    path = p->checkPathRedirect(path);
-
+    // Handle AT_EMPTY_PATH specially.
+    // TODO: Should refactor code to have only one path.
+    auto p = tc->getProcessPtr();    
     struct stat host_buf;
-    int result = stat(path.c_str(), &host_buf);
+    int result;
+    if (empty_path) {
+        const auto hbfdp = std::dynamic_pointer_cast<HBFDEntry>((*p->fds)[dirfd]);
+        panic_if(!hbfdp, "newfstatat can't handle non-host-backed file descriptors at empty path!\n");
+        result = fstatat(hbfdp->getSimFD(), path.c_str(), &host_buf, flags | OS::TGT_AT_EMPTY_PATH);
+    } else {
+        // Modifying path from the directory descriptor
+        if (auto res = atSyscallPath<OS>(tc, dirfd, path); !res.successful()) {
+            return res;
+        }
+
+
+        // Adjust path for cwd and redirection
+        path = p->checkPathRedirect(path);
+
+        DPRINTF_SYSCALL(Verbose, "newfstatat: after redirect: %s\n", path);
+
+        result = stat(path.c_str(), &host_buf);
+    }
 
     if (result < 0)
         return -errno;
@@ -1782,9 +1801,11 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
     pp->cmd.push_back(*(new std::string(p->progName())));
     pp->system = p->system;
     pp->cwd.assign(p->tgtCwd);
-    pp->input.assign("stdin");
-    pp->output.assign("stdout");
-    pp->errout.assign("stderr");
+    // TODO: Should probably assign stdin, stdout, stderr to the same as the
+    // parent process.
+    pp->input.assign("/dev/stdin");
+    pp->output.assign("/dev/stdout");
+    pp->errout.assign("/dev/stderr");
     pp->uid = p->uid();
     pp->euid = p->euid();
     pp->gid = p->gid();
@@ -1804,7 +1825,13 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
     pp->ppid = (flags & OS::TGT_CLONE_THREAD) ? p->ppid() : p->pid();
     pp->useArchPT = p->useArchPT;
     pp->kvmInSE = p->kvmInSE;
+    pp->pinInSE = p->pinInSE;
+#if 0
     Process *cp = pp->create();
+#else
+    Process *cp = Process::tryLoaders(*pp, p->objFile);
+    fatal_if(!cp, "Unknown error creating process object.");
+#endif
     // TODO: there is no way to know when the Process SimObject is done with
     // the params pointer. Both the params pointer (pp) and the process
     // pointer (cp) are normally managed in python and are never cleaned up.
@@ -2358,7 +2385,9 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
     if (!mem_proxy.tryReadString(path, pathname))
         return -EFAULT;
 
-    if (access(path.c_str(), F_OK) == -1)
+    DPRINTF_SYSCALL(Verbose, "execve: %s\n", path);
+
+    if (access(path.c_str(), X_OK) == -1)
         return -EACCES;
 
     auto read_in = [](std::vector<std::string> &vect,
@@ -2393,7 +2422,7 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
      * constructor.
      */
     ProcessParams *pp = new ProcessParams();
-    pp->executable = path;
+    pp->executable = p->checkPathRedirect(path);
     read_in(pp->cmd, mem_proxy, argv_mem_loc);
     read_in(pp->env, mem_proxy, envp_mem_loc);
     pp->uid = p->uid();
@@ -2402,12 +2431,21 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
     pp->gid = p->gid();
     pp->ppid = p->ppid();
     pp->pid = p->pid();
-    pp->input.assign("cin");
-    pp->output.assign("cout");
-    pp->errout.assign("cerr");
+    pp->kvmInSE = p->kvmInSE;
+    pp->pinInSE = p->pinInSE;
+    // TODO: Should probably inherit stdin, stdout, and stderr from parent.
+    pp->input.assign("/dev/stdin");
+    pp->output.assign("/dev/stdout");
+    pp->errout.assign("/dev/stderr");
     pp->cwd.assign(p->tgtCwd);
     pp->system = p->system;
     pp->release = p->release;
+    pp->maxStackSize = p->memState->getMaxStackSize();
+    pp->useArchPT = p->useArchPT;
+    pp->zeroPages = p->zeroPages;
+    pp->env = p->envp;
+    pp->drivers = p->drivers;
+    // TODO: Need to also copy these on clone!!!!
     /**
      * Prevent process object creation with identical PIDs (which will trip
      * a fatal check in Process constructor). The execve call is supposed to
@@ -2435,6 +2473,10 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
 
     *new_p->sigchld = true;
 
+    // Need to halt thread context so Pin can do proper cleanup.
+    tc->halt();
+    tc->getMMUPtr()->flushAll();
+    assert(tc->status() != ThreadContext::Active);
     tc->clearArchRegs();
     tc->setProcessPtr(new_p);
     new_p->assignThreadContext(tc->contextId());
@@ -2517,8 +2559,13 @@ SyscallReturn
 timeFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> taddr)
 {
     typename OS::time_t sec, usec;
-    getElapsedTimeMicro(sec, usec);
-    sec += seconds_since_epoch;
+    if (tc->getProcessPtr()->pinInSE) {
+        sec = curTick();
+        usec = 0;
+    } else {
+        getElapsedTimeMicro(sec, usec);
+        sec += seconds_since_epoch;
+    }
 
     SETranslatingPortProxy p(tc);
     if (taddr != 0) {
@@ -2615,11 +2662,11 @@ socketpairFunc(SyscallDesc *desc, ThreadContext *tc,
 
 template <class OS>
 SyscallReturn
-selectFunc(SyscallDesc *desc, ThreadContext *tc, int nfds,
+doSelect(SyscallDesc *desc, ThreadContext *tc, int nfds,
            VPtr<typename OS::fd_set> readfds,
            VPtr<typename OS::fd_set> writefds,
            VPtr<typename OS::fd_set> errorfds,
-           VPtr<typename OS::timeval> timeout)
+           typename OS::timeval *timeout)
 {
     int retval;
 
@@ -2794,6 +2841,36 @@ selectFunc(SyscallDesc *desc, ThreadContext *tc, int nfds,
 
 template <class OS>
 SyscallReturn
+selectFunc(SyscallDesc *desc, ThreadContext *tc, int nfds,
+           VPtr<typename OS::fd_set> readfds,
+           VPtr<typename OS::fd_set> writefds,
+           VPtr<typename OS::fd_set> errorfds,
+           VPtr<typename OS::timeval> timeout)
+{
+    return doSelect<OS>(desc, tc, nfds, readfds, writefds, errorfds, &*timeout);
+}
+
+template <class OS>
+SyscallReturn
+pselect6Func(SyscallDesc *desc, ThreadContext *tc,
+             int nfds,
+             VPtr<typename OS::fd_set> readfds,
+             VPtr<typename OS::fd_set> writefds,
+             VPtr<typename OS::fd_set> exceptfds,
+             VPtr<typename OS::timespec> timeout,
+             VPtr<typename OS::sigset_t> sigmask)
+{
+    panic_if(sigmask, "pselect6: unimplemented for given arguments\n");
+
+    typename OS::timeval tv;
+    tv.tv_sec = timeout->tv_sec;
+    tv.tv_usec = timeout->tv_nsec / 1000;
+
+    return doSelect<OS>(desc, tc, nfds, readfds, writefds, exceptfds, &tv);
+}
+
+template <class OS>
+SyscallReturn
 readFunc(SyscallDesc *desc, ThreadContext *tc,
         int tgt_fd, VPtr<> buf_ptr, typename OS::size_t nbytes)
 {
@@ -2816,6 +2893,14 @@ readFunc(SyscallDesc *desc, ThreadContext *tc,
 
     if (bytes_read > 0)
         buf_arg.copyOut(SETranslatingPortProxy(tc));
+
+    DPRINTF_SYSCALL(Verbose, "read data: %s", "\"");
+    for (int i = 0; i < std::min<size_t>(bytes_read, 64); ++i) {
+        const char c = (*reinterpret_cast<TypedBufferArg<char> *>(&buf_arg))[i];
+        DPRINTFR(SyscallVerbose, "%c", isprint(c) ? c : '.');
+    }
+    DPRINTFR(SyscallVerbose, "%s...\n", "\"");
+    
 
     return (bytes_read == -1) ? -errno : bytes_read;
 }
@@ -2851,12 +2936,37 @@ writeFunc(SyscallDesc *desc, ThreadContext *tc,
             return SyscallReturn::retry();
     }
 
+    const int flags = fcntl(sim_fd, F_GETFL, 0);
+    if (flags < 0)
+        panic("fcntl: %s\n", strerror(errno));
+    if (fcntl(sim_fd, F_SETFL, flags | O_NONBLOCK) < 0)
+        panic("fcntl: %s\n", strerror(errno));
+
     int bytes_written = write(sim_fd, buf_arg.bufferPtr(), nbytes);
+    if (bytes_written < 0 && errno == EWOULDBLOCK)
+      return SyscallReturn::retry();
+
+    const int myerrno = errno;
+
+    if (fcntl(sim_fd, F_SETFL, flags) < 0)
+        panic("fcntl: %s\n", strerror(errno));
 
     if (bytes_written != -1)
         fsync(sim_fd);
 
-    return (bytes_written == -1) ? -errno : bytes_written;
+    DPRINTF_SYSCALL(Verbose, "write data: %s", "\"");
+    for (int i = 0; i < std::min<size_t>(bytes_written, 64); ++i) {
+        const char c = (*reinterpret_cast<TypedBufferArg<char> *>(&buf_arg))[i];
+        DPRINTFR(SyscallVerbose, "%c", isprint(c) ? c : '.');
+    }
+    DPRINTFR(SyscallVerbose, "%s...\n", "\"");
+    if (bytes_written != nbytes) {
+        DPRINTF_SYSCALL(Verbose, "partial write: wrote %u requested %u\n",
+                        bytes_written, nbytes);
+    }
+        
+
+    return (bytes_written == -1) ? -myerrno : bytes_written;
 }
 
 template <class OS>
@@ -2906,9 +3016,9 @@ wait4Func(SyscallDesc *desc, ThreadContext *tc,
 
 success:
     // Set status to EXITED for WIFEXITED evaluations.
-    const int EXITED = 0;
+    // TODO: This should use a typed VPtr.
     BufferArg statusBuf(statPtr, sizeof(int));
-    *(int *)statusBuf.bufferPtr() = EXITED;
+    *(int *)statusBuf.bufferPtr() = iter->childStatus;
     statusBuf.copyOut(SETranslatingPortProxy(tc));
 
     // Return the child PID.
@@ -3233,6 +3343,66 @@ getrandomFunc(SyscallDesc *desc, ThreadContext *tc,
 
     return count;
 }
+
+template <typename OS>
+SyscallReturn
+setuidFunc(SyscallDesc *desc, ThreadContext *tc, typename OS::uid_t uid)
+{
+    const auto p = tc->getProcessPtr();
+    panic_if(uid != p->uid(), "setuid unimplemented\n");
+    return 0;
+}
+
+template <typename OS>
+SyscallReturn
+getresuidFunc(SyscallDesc *desc, ThreadContext *tc,
+              VPtr<typename OS::uid_t> ruid,
+              VPtr<typename OS::uid_t> euid,
+              VPtr<typename OS::uid_t> suid)
+{
+    const auto p = tc->getProcessPtr();
+    *ruid = p->uid();
+    *euid = p->uid();
+    *suid = p->uid();
+    return 0;
+}
+
+template <typename OS>
+SyscallReturn
+getresgidFunc(SyscallDesc *desc, ThreadContext *tc,
+              VPtr<typename OS::gid_t> rgid,
+              VPtr<typename OS::gid_t> egid,
+              VPtr<typename OS::gid_t> sgid)
+{
+    const auto p = tc->getProcessPtr();
+    *rgid = p->gid();
+    *egid = p->gid();
+    *sgid = p->gid();
+    return 0;
+}
+
+template <typename OS>
+SyscallReturn
+mincoreFunc(SyscallDesc *desc, ThreadContext *tc,
+            VPtr<> addr, typename OS::size_t length, VPtr<> vec)
+{
+    // TODO: Check addr for page alignment.
+    // TODO: Check vec for validity.
+
+    // Round up the length.
+    const auto p = tc->getProcessPtr();
+    const auto page_bytes = p->pTable->pageSize();
+    length = roundUp(length, page_bytes);
+
+    // Pretend all pages are resident in RAM.
+    TypedBufferArg<uint8_t> vec_buf(vec, length / page_bytes);
+    for (size_t i = 0; i < length / page_bytes; ++i)
+        vec_buf[i] = 1;
+    vec_buf.copyOut(SETranslatingPortProxy(tc));
+
+    return 0;
+}
+
 
 } // namespace gem5
 

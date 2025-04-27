@@ -122,6 +122,17 @@ ElfObject::ElfObject(ImageFileDataPtr ifd) : ObjectFile(ifd)
     _programHeaderCount = ehdr.e_phnum;
     _programHeaderSize = ehdr.e_phentsize;
 
+    switch (ehdr.e_type) {
+      case ET_DYN:
+        relocate = true;
+        break;
+      case ET_EXEC:
+        relocate = false;
+        break;
+      default:
+        panic("unhandled EH_TYPE: %#x\n", ehdr.e_type);
+    }
+
     // Go through all the segments in the program and record them.
     for (int i = 0; i < ehdr.e_phnum; ++i) {
         GElf_Phdr phdr;

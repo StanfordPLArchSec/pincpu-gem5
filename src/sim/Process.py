@@ -40,9 +40,9 @@ class Process(SimObject):
     def map(self, vaddr, paddr, size, cacheable=False):
         pass
 
-    input = Param.String("cin", "filename for stdin")
-    output = Param.String("cout", "filename for stdout")
-    errout = Param.String("cerr", "filename for stderr")
+    input = Param.String("/dev/stdin", "filename for stdin")
+    output = Param.String("/dev/stdout", "filename for stdout")
+    errout = Param.String("/dev/stderr", "filename for stderr")
     system = Param.System(Parent.any, "system process will run on")
     useArchPT = Param.Bool(
         "false",
@@ -50,6 +50,7 @@ class Process(SimObject):
                             table in an architecture-specific format",
     )
     kvmInSE = Param.Bool("false", "initialize the process for KvmCPU in SE")
+    pinInSE = Param.Bool(False, "Intel Pin in SE")
     maxStackSize = Param.MemorySize("64MiB", "maximum size of the stack")
     zeroPages = Param.Bool(
         True,

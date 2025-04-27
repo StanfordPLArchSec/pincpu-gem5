@@ -43,6 +43,8 @@
 #include <fcntl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+// TODO: Shouldn't do this.
+#include <sys/epoll.h>
 
 #include <csignal>
 #include <iostream>
@@ -192,7 +194,13 @@ exitImpl(SyscallDesc *desc, ThreadContext *tc, bool group, int status)
     if (last_thread) {
         if (parent) {
             assert(tg_lead);
-            sys->signalList.push_back(BasicSignal(tg_lead, parent, SIGCHLD));
+            // TODO: Should use OS::TGT_SIGCHLD instead.
+            BasicSignal sig(tg_lead, parent, SIGCHLD);
+            int masked_status = status & 0xFF;
+            sig.childStatus = masked_status << 8;
+            assert(WIFEXITED(sig.childStatus) &&
+                   WEXITSTATUS(sig.childStatus) == masked_status);
+            sys->signalList.push_back(sig);
         }
 
         /**
@@ -321,7 +329,11 @@ _llseekFunc(SyscallDesc *desc, ThreadContext *tc,
 {
     auto p = tc->getProcessPtr();
 
-    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>((*p->fds)[tgt_fd]);
+    auto fdp = (*p->fds)[tgt_fd];
+    if (std::dynamic_pointer_cast<PipeFDEntry>(fdp))
+        return -ESPIPE;
+
+    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>(fdp);
     if (!ffdp)
         return -EBADF;
     int sim_fd = ffdp->getSimFD();
@@ -652,6 +664,16 @@ fcntlFunc(SyscallDesc *desc, ThreadContext *tc,
         int arg = varargs.get<int>();
         int rv = fcntl(sim_fd, cmd, arg);
         return (rv == -1) ? -errno : rv;
+      }
+
+      case F_DUPFD: {
+          int min_new_fd = varargs.get<int>();
+          // Find least available file descriptor greater than or equal
+          // to min_new_fd.
+          int new_fd;
+          for (new_fd = min_new_fd; (*p->fds)[new_fd]; ++new_fd)
+              ;
+          return dup2Func(desc, tc, tgt_fd, new_fd);
       }
 
       default:
@@ -1487,6 +1509,19 @@ sched_getparamFunc(SyscallDesc *desc, ThreadContext *tc,
     warn_once("sched_getparam: pretending sched_priority is 0 for all PIDs\n");
     *paramPtr = 0;
     return 0;
+}
+
+SyscallReturn
+epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags)
+{
+    const int sim_fd = epoll_create1(flags);
+    const bool coe = flags & EPOLL_CLOEXEC;
+    // TODO: make it OS::TGT_EPOLL_CLOEXEC.
+    flags &= ~EPOLL_CLOEXEC;
+    const auto hbfdp = std::make_shared<HBFDEntry>(flags, sim_fd, coe);
+    auto p = tc->getProcessPtr();
+    const int tgt_fd = p->fds->allocFD(hbfdp);
+    return tgt_fd;
 }
 
 } // namespace gem5

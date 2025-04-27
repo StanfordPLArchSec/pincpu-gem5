@@ -250,6 +250,13 @@ class TranslationGenConstIterator
     {
         return !(*this == other);
     }
+
+    void
+    resetFault()
+    {
+        assert(!end);
+        current.fault = NoFault;
+    }
 };
 
 TranslationGenConstIterator

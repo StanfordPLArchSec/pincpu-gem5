@@ -1,0 +1,8 @@
+config HAVE_PIN
+    bool
+    default "$(HAVE_PIN)"
+
+config USE_PIN
+    depends on HAVE_PIN
+    bool "Enable Pin CPU model"
+    default y

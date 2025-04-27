@@ -45,6 +45,7 @@
 #include "sim/fd_entry.hh"
 #include "sim/mem_state.hh"
 #include "sim/sim_object.hh"
+#include "params/Process.hh"
 
 namespace gem5
 {
@@ -53,8 +54,6 @@ namespace loader
 {
 class ObjectFile;
 } // namespace loader
-
-struct ProcessParams;
 
 class EmulatedDriver;
 class EmulationPageTable;
@@ -69,6 +68,8 @@ class Process : public SimObject
   public:
     Process(const ProcessParams &params, EmulationPageTable *pTable,
             loader::ObjectFile *obj_file);
+
+    ProcessParams params;
 
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;
@@ -184,6 +185,7 @@ class Process : public SimObject
     bool useArchPT;
     // running KVM requires special initialization
     bool kvmInSE;
+    bool pinInSE;
     // flag for using the process as a thread which shares page tables
     bool useForClone;
 

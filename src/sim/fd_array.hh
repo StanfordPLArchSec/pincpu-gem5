@@ -124,6 +124,7 @@ class FDArray : public Serializable
       unserialize(cp, nullptr);
     };
 
+    std::shared_ptr<FDEntry> tryGetFDEntry(int tgt_fd);
 
   private:
     /**

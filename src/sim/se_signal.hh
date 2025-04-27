@@ -42,6 +42,9 @@ class BasicSignal
     Process *sender;
     Process *receiver;
     int signalValue;
+    union {
+        int childStatus; // For OS::TGT_SIGCHLD -- the status of the child.
+    };
 
     BasicSignal(Process *sender, Process *receiver, int signal_val);
     ~BasicSignal();
