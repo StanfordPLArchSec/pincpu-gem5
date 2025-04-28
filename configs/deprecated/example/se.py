@@ -101,7 +101,9 @@ def get_processes(args):
         process.output = "/dev/stdout"
         process.errout = "/dev/stderr"
 
-        if args.env:
+        if args.env == "host":
+            process.env = [f"{key}={value}" for key, value in os.environ.items()]
+        elif args.env:
             with open(args.env) as f:
                 process.env = [line.rstrip() for line in f]
 
