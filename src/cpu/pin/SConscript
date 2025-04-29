@@ -123,6 +123,7 @@ if env['CONF']['BUILD_ISA']:
             'tools/addrhist.cc',
             'tools/addrcount.cc',
             'tools/hfi.cc',
+            'tools/insttrace.cc',
         ],
         tags = 'pin',
     )

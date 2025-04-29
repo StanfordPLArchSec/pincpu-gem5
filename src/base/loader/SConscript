@@ -37,3 +37,4 @@ Source('object_file.cc')
 Source('symtab.cc')
 GTest('symtab.test', 'symtab.test.cc', 'symtab.cc',
     with_any_tags('gem5 serialize', 'gem5 trace'))
+DebugFlag('MemoryImage')

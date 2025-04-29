@@ -615,6 +615,8 @@ class System : public SimObject, public PCEventScope
     // to be redirected to the faux-filesystem (a duplicate filesystem
     // intended to replace certain files on the host filesystem).
     std::vector<RedirectPath*> redirectPaths;
+
+    void dumpFDArrays();
 };
 
 void printSystems();

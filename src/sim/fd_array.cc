@@ -462,4 +462,16 @@ FDArray::tryGetFDEntry(int tgt_fd)
     return getFDEntry(tgt_fd);
 }
 
+void
+FDArray::print(std::ostream &os) const
+{
+    for (std::size_t i = 0; i < _fdArray.size(); ++i) {
+        if (const auto &fd = _fdArray[i]) {
+            os << "    [" << std::dec << i << "] ";
+            fd->print(os);
+            os << "\n";
+        }
+    }
+}
+
 } // namespace gem5

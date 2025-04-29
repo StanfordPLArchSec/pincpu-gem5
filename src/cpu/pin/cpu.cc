@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <sys/times.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 
 #include "cpu/simple_thread.hh"
 #include "params/BasePinCPU.hh"
@@ -95,7 +96,7 @@ split_by_spaces(std::string_view str)
 CPU::CPU(const BasePinCPUParams &params)
     : BaseCPU(params),
       tickEvent([this] { tick(); }, "BasePinCPU tick", false, Event::CPU_Tick_Pri),
-      _status(Idle),
+      _status(Halted),
       dataPort(name() + ".dcache_port", this),
       instPort(name() + ".icache_port", this),
       pinExe(params.pinExe),
@@ -126,8 +127,11 @@ CPU::CPU(const BasePinCPUParams &params)
 }
 
 void
-CPU::haltContext()
+CPU::haltContext(ThreadID tid)
 {
+    assert(tid == 0);
+    assert(_status != Halted);
+
     DPRINTF(Pin, "Halting Pin process\n");
     // Tell Pin to exit.
     assert(pinPid >= 0 && reqFd >= 0 && respFd >= 0);
@@ -153,7 +157,10 @@ CPU::haltContext()
 	    static_cast<double>(tms.tms_utime) / tick,
 	    static_cast<double>(tms.tms_stime) / tick);
 
-    _status = Idle;
+    _status = Halted;
+
+    if (tickEvent.scheduled())
+        deschedule(tickEvent);
 }
 
 bool
@@ -256,9 +263,10 @@ CPU::init()
 }
 
 void
-CPU::startup()
+CPU::restartPin()
 {
-    BaseCPU::startup();
+    assert(tc->status() == ThreadContext::Active);
+    DPRINTF(Pin, "PinCPU: starting up: %s pid %d\n", name(), tc->getProcessPtr()->pid());
 
     // TODO: Remove this crap. unused i think.
     tc->simcall_info.type = ThreadContext::SimcallInfo::INVALID; // TODO: This is definitely not the appropriate place for this.
@@ -306,18 +314,33 @@ CPU::startup()
     } else if (pinPid == 0) {
         // Create log file for this fucking mess.
         // It will be for the kernel.
-        const int kernout_fd = open(kernoutPath.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
+        std::stringstream suffix;
+        suffix << "." << tc->getProcessPtr()->pid();
+        const std::string kernout_path = kernoutPath + suffix.str();
+        const std::string kernerr_path = kernerrPath + suffix.str();
+        const int kernout_fd = open(kernout_path.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
         if (kernout_fd < 0)
             panic("Failed to create kernel.log\n");
         if (dup2(kernout_fd, STDOUT_FILENO) < 0)
             panic("dup2 failed\n");
 
-        const int kernerr_fd = open(kernerrPath.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
+        const int kernerr_fd = open(kernerr_path.c_str(), O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0664);
         if (kernerr_fd < 0)
             panic("Failed to create kernerr.txt");
         if (dup2(kernerr_fd, STDERR_FILENO) < 0)
             panic("dup2 failed\n");
 
+        // Close all file descriptors >= 3.
+        struct rlimit rlim;
+        if (getrlimit(RLIMIT_NOFILE, &rlim) < 0)
+            panic("getlimit failed\n");
+        for (int fd = 3; fd < rlim.rlim_cur; ++fd) {
+            if (fd != remote_req_fd &&
+                fd != remote_resp_fd &&
+                fd != shm_fd) {
+                close(fd);
+            }
+        }
         
         // This is the Pin subprocess. Execute pin.
         std::vector<std::string> args;
@@ -345,6 +368,22 @@ CPU::startup()
         *it++ = "-resp_path"; *it++ = resp_path;
         *it++ = "-mem_path"; *it++ = shm_path;
         *it++ = "-instcount"; *it++ = ctrInsts ? "1" : "0";
+
+        // DEBUG: insttrace pid?
+#if 1
+        if (const char *pid_s = std::getenv("PINCPU_TRACEPID")) {
+            const int pid = std::stoi(pid_s);
+            if (pid == tc->getProcessPtr()->pid()) {
+                *it++ = "-insttrace";
+                *it++ = "1";
+            }
+        }
+#else
+        if (tc->getProcessPtr()->pid() == 126) {
+            *it++ = "-insttrace";
+            *it++ = "1";
+        }
+#endif
 
         // Custom Pintool args.
         it = std::copy(pinToolArgs.begin(), pinToolArgs.end(), it);
@@ -393,6 +432,7 @@ void
 CPU::mapCode()
 {
     const Addr min = tc->getProcessPtr()->image.minAddr();
+    panic_if(min == 0, "Code is mapped to %#x!\n", min);
     const Addr max = tc->getProcessPtr()->image.maxAddr();
     const TranslationGenPtr ptr = tc->getMMUPtr()->translateFunctional(min, max - min, tc, BaseMMU::Execute, 0);
     for (TranslationGenConstIterator it = ptr->begin(); it != ptr->end(); ++it) {
@@ -408,7 +448,7 @@ CPU::mapCode()
         msg.map.vaddr = range.vaddr;
         msg.map.paddr = range.paddr;
         msg.map.size = range.size;
-        msg.map.prot = PROT_READ | PROT_EXEC;
+        msg.map.prot = PROT_READ | PROT_EXEC | PROT_WRITE; // FIXME
         msg.send(reqFd);
         msg.recv(respFd);
         panic_if(msg.type != Message::Ack, "unexpected response\n");
@@ -420,6 +460,21 @@ CPU::activateContext(ThreadID tid)
 {
     assert(tid == 0);
     assert(thread);
+    assert(!tickEvent.scheduled());
+
+    DPRINTF(Pin, "PinCPU: activating context\n");
+    
+    switch (_status) {
+      case Idle:
+        break;
+
+      case Halted:
+        restartPin();
+        break;
+
+      default:
+        panic("bad PinCPU state!\n");
+    }
 
     schedule(tickEvent, clockEdge(Cycles(0)));
     _status = Running;
@@ -430,11 +485,9 @@ CPU::suspendContext(ThreadID tid)
 {
     assert(tid == 0);
     assert(thread);
-
-    if (_status == Idle)
-        return;
-
     assert(_status == Running);
+
+    DPRINTF(Pin, "PinCPU: suspending context\n");
 
     if (tickEvent.scheduled())
         deschedule(tickEvent);
@@ -447,19 +500,32 @@ CPU::tick()
 {
     Tick delay = 0;
 
-    assert(_status != Idle);
     assert(_status == Running);
 
     pinRun(); // TODO: Will need to communicate how many ticks required.
 
+#if 0
+    // TODO: We should get notified of this, anyway.
+    // Can probably remove this check.
     if (tc->status() == ThreadContext::Halting ||
         tc->status() == ThreadContext::Halted) {
         haltContext();
     }
+#else
+    switch (tc->status()) {
+      case ThreadContext::Halting:
+      case ThreadContext::Halted:
+        assert(_status == Halted);
+        break;
+      default:
+        break;
+    }
+#endif
     
     ++delay; // FIXME
 
-    if (_status != Idle) {
+    if (_status == Running && !tickEvent.scheduled()) {
+        DPRINTF(Pin, "PinCPU: scheduling next tick\n");
         schedule(tickEvent, clockEdge(ticksToCycles(delay)));
     }
 }
@@ -684,6 +750,8 @@ CPU::pinRun()
 {
     syncStateToPin(false);
 
+    DPRINTF(Pin, "P%d : running Pin\n", tc->getProcessPtr()->pid());
+
     // Tell it to run.
     Message msg;
     msg.type = Message::Run;
@@ -731,6 +799,8 @@ CPU::handlePageFault(Addr vaddr)
     assert(vaddr);
     vaddr &= ~ (Addr) 0xfff;
 
+    [[maybe_unused]] const auto mypid = tc->getProcessPtr()->pid();
+
     // New approach:
     // Just start grabbing mappings until they aren't mergeable.
     struct Entry {
@@ -763,6 +833,25 @@ CPU::handlePageFault(Addr vaddr)
          ++r_it, ++w_it, ++x_it) {
         assert(w_it != w->end());
         assert(x_it != x->end());
+        // DEBUG
+        if (r_it->fault != NoFault) {
+            Message msg;
+            msg.type = Message::Abort;
+            msg.send(reqFd);
+
+            // Dump all processes' VMA lists.
+            for (auto *tc : system->threads) {
+                if (tc->status() != ThreadContext::Halted) {
+                    if (const auto p = tc->getProcessPtr()) {
+                        std::cerr << "VMA LIST FOR " << std::dec << p->pid();
+                        if (p->pid() == mypid)
+                            std::cerr << "[*]";
+                        std::cerr << ":\n";
+                        std::cerr << p->memState->printVmaList() << "\n\n";
+                    }
+                }
+            }
+        }
         panic_if(r_it->fault != NoFault, "Page fault: vaddr=%#x fault=%s\n", r_it->vaddr, r_it->fault->name());
         Entry entry;
         entry.vaddr = r_it->vaddr;

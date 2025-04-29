@@ -81,6 +81,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/epoll.h>
 #include <unistd.h>
 
 #include <cerrno>
@@ -308,6 +309,9 @@ SyscallReturn recvmsgFunc(SyscallDesc *desc, ThreadContext *tc,
 // Target sendmsg() handler.
 SyscallReturn sendmsgFunc(SyscallDesc *desc, ThreadContext *tc,
                           int tgt_fd, VPtr<> msgPtr, int flags);
+SyscallReturn sendmmsgFunc(SyscallDesc *desc, ThreadContext *tc,
+                           int tgt_fd, VPtr<> msg_vec, unsigned int vlen,
+                           int flags);
 
 // Target getuid() handler.
 SyscallReturn getuidFunc(SyscallDesc *desc, ThreadContext *tc);
@@ -333,7 +337,7 @@ SyscallReturn accessImpl(SyscallDesc *desc, ThreadContext *tc,
 // Target getsockopt() handler.
 SyscallReturn getsockoptFunc(SyscallDesc *desc, ThreadContext *tc,
                              int tgt_fd, int level, int optname,
-                             VPtr<> valPtr, VPtr<> lenPtr);
+                             VPtr<> valPtr, VPtr<socklen_t> lenPtr);
 
 // Target setsockopt() handler.
 SyscallReturn setsockoptFunc(SyscallDesc *desc, ThreadContext *tc,
@@ -353,6 +357,14 @@ SyscallReturn sched_getparamFunc(SyscallDesc *desc, ThreadContext *tc,
                                  int pid, VPtr<int> paramPtr);
 
 SyscallReturn epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags);
+SyscallReturn epoll_ctlFunc(SyscallDesc *desc, ThreadContext *tc, int epfd,
+                            int op, int fd, VPtr<struct epoll_event> event);
+SyscallReturn epoll_waitFunc(SyscallDesc *desc, ThreadContext *tc,
+                             int epfd, VPtr<> events,
+                             int maxevents, int timeout);
+SyscallReturn ioplFunc(SyscallDesc *desc, ThreadContext *tc, int level);
+SyscallReturn memfd_createFunc(SyscallDesc *desc, ThreadContext *tc,
+                               VPtr<> name, unsigned int flags);
 
 template <class OS>
 SyscallReturn
@@ -832,6 +844,10 @@ openatFunc(SyscallDesc *desc, ThreadContext *tc,
     if (auto res = atSyscallPath<OS>(tc, tgt_dirfd, path); !res.successful())
         return res;
 
+    // HACK: Needed for firefox?
+    if (path.find("libpci.so") != std::string::npos)
+        return -ENOENT;
+
 #ifdef __CYGWIN32__
     int host_flags = O_BINARY;
 #else
@@ -1081,20 +1097,28 @@ readlinkatFunc(SyscallDesc *desc, ThreadContext *tc,
     if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
         return -EFAULT;
 
+    DPRINTF_SYSCALL(Verbose, "readlinkat: %s\n", path);
+
     // Modifying path from the directory descriptor
     if (auto res = atSyscallPath<OS>(tc, dirfd, path); !res.successful()) {
         return res;
     }
 
+    const std::string orig_path = path;
+    
+    DPRINTF_SYSCALL(Verbose, "readlinkat: %s\n", path);
+    
     auto p = tc->getProcessPtr();
 
     // Adjust path for cwd and redirection
     path = p->checkPathRedirect(path);
 
+    DPRINTF_SYSCALL(Verbose, "readlinkat: %s\n", path);
+    
     BufferArg buf(buf_ptr, bufsiz);
 
     int result = -1;
-    if (path != "/proc/self/exe") {
+    if (orig_path != "/proc/self/exe") {
         result = readlink(path.c_str(), (char *)buf.bufferPtr(), bufsiz);
     } else {
         // Emulate readlink() called on '/proc/self/exe' should return the
@@ -1802,6 +1826,7 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
     ProcessParams *pp = new ProcessParams();
     pp->executable.assign(*(new std::string(p->progName())));
     pp->cmd.push_back(*(new std::string(p->progName())));
+    pp->env.clear();
     pp->system = p->system;
     pp->cwd.assign(p->tgtCwd);
     // TODO: Should probably assign stdin, stdout, stderr to the same as the
@@ -1829,6 +1854,8 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
     pp->useArchPT = p->useArchPT;
     pp->kvmInSE = p->kvmInSE;
     pp->pinInSE = p->pinInSE;
+    pp->zeroPages = true;
+    pp->maxStackSize = p->memState->getMaxStackSize();
 #if 0
     Process *cp = pp->create();
 #else
@@ -1838,6 +1865,7 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
     // TODO: there is no way to know when the Process SimObject is done with
     // the params pointer. Both the params pointer (pp) and the process
     // pointer (cp) are normally managed in python and are never cleaned up.
+    std::cerr << "new pid: " << std::dec << pp->pid << "\n";
 
     Process *owner = ctc->getProcessPtr();
     ctc->setProcessPtr(cp);
@@ -1868,6 +1896,7 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
         *cp->sigchld = true;
     }
 
+    // TODO: This is wrong - actually need a mask, I think.
     if (flags & OS::TGT_CLONE_CHILD_SETTID) {
         BufferArg ctidBuf(ctidPtr, sizeof(long));
         long *ctid = (long *)ctidBuf.bufferPtr();
@@ -1884,6 +1913,7 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
 
     desc->returnInto(ctc, 0);
 
+    ctc->halt(); // Halt so that PinCPU can deactivate the address space.
     ctc->activate();
 
     if (flags & OS::TGT_CLONE_VFORK) {
@@ -1924,6 +1954,22 @@ cloneBackwardsFunc(SyscallDesc *desc, ThreadContext *tc, RegVal flags,
                    VPtr<> ctidPtr)
 {
     return cloneFunc<OS>(desc, tc, flags, newStack, ptidPtr, ctidPtr, tlsPtr);
+}
+
+template <typename OS>
+SyscallReturn
+vforkFunc(SyscallDesc *desc, ThreadContext *tc)
+{
+    const RegVal flags =
+        OS::TGT_SIGCHLD |
+        OS::TGT_CLONE_VFORK;
+    const VPtr<> null(0);
+    return cloneFunc<OS>(desc, tc,
+                         flags,
+                         /*new_stack*/0,
+                         /*ptid_ptr*/null,
+                         /*ctid_ptr*/null,
+                         /*tls_ptr*/null);
 }
 
 /// Target fstatfs() handler.
@@ -2014,6 +2060,16 @@ writevFunc(SyscallDesc *desc, ThreadContext *tc,
         prox.readBlob(gtoh(tiov.iov_base, OS::byteOrder), hiov[i].iov_base,
                       hiov[i].iov_len);
     }
+
+    // DEBUG: Dump out writev info.
+    DPRINTF_SYSCALL(Verbose, "writev: fd=%d count=%d\n", tgt_fd, count);
+    for (size_t i = 0; i < count; ++i) {
+        DPRINTF_SYSCALL(Verbose, "writev: iov_base%d=%p iov_len%d=%d\n",
+                        i, hiov[i].iov_base,
+                        i, hiov[i].iov_len);
+    }
+                    
+    
 
     int result = writev(sim_fd, hiov, count);
 
@@ -2274,7 +2330,7 @@ prlimitFunc(SyscallDesc *desc, ThreadContext *tc,
         switch (resource) {
           case OS::TGT_RLIMIT_STACK:
             // max stack size in bytes: make up a number (8MiB for now)
-            rlp->rlim_cur = rlp->rlim_max = 8 * 1024 * 1024;
+            rlp->rlim_cur = rlp->rlim_max = tc->getProcessPtr()->memState->getMaxStackSize();
             rlp->rlim_cur = htog(rlp->rlim_cur, bo);
             rlp->rlim_max = htog(rlp->rlim_max, bo);
             break;
@@ -2282,6 +2338,12 @@ prlimitFunc(SyscallDesc *desc, ThreadContext *tc,
             // max data segment size in bytes: make up a number
             rlp->rlim_cur = rlp->rlim_max = 256*1024*1024;
             rlp->rlim_cur = htog(rlp->rlim_cur, bo);
+            rlp->rlim_max = htog(rlp->rlim_max, bo);
+            break;
+          case OS::TGT_RLIMIT_NOFILE:
+            rlp->rlim_cur = 1024;
+            rlp->rlim_cur = htog(rlp->rlim_cur, bo);
+            rlp->rlim_max = 1024;
             rlp->rlim_max = htog(rlp->rlim_max, bo);
             break;
           default:
@@ -2424,10 +2486,18 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
      * fields are manually initialized instead of passing parameters to the
      * constructor.
      */
-    ProcessParams *pp = new ProcessParams();
+    ProcessParams *pp = new ProcessParams(p->params);
     pp->executable = p->checkPathRedirect(path);
+    if (access(pp->executable.c_str(), X_OK) < 0)
+        return -errno;
+    pp->cmd.clear();
+    pp->env.clear();
     read_in(pp->cmd, mem_proxy, argv_mem_loc);
     read_in(pp->env, mem_proxy, envp_mem_loc);
+    DPRINTF_SYSCALL(Verbose, "execve args:%s", "");
+    for (const std::string &arg : pp->cmd)
+        DPRINTFR(SyscallVerbose, " %s", arg);
+    DPRINTFR(SyscallVerbose, "\n%s", "");
     pp->uid = p->uid();
     pp->egid = p->egid();
     pp->euid = p->euid();
@@ -2448,6 +2518,7 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
     pp->zeroPages = p->zeroPages;
     pp->env = p->envp;
     pp->drivers = p->drivers;
+    assert(pp->zeroPages);
     // TODO: Need to also copy these on clone!!!!
     /**
      * Prevent process object creation with identical PIDs (which will trip
@@ -2459,6 +2530,11 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
      */
     p->system->PIDs.erase(p->pid());
     Process *new_p = pp->create();
+    DPRINTF_SYSCALL(Verbose, "execve args:%s", "");
+    for (const std::string &arg : new_p->argv)
+        DPRINTFR(SyscallVerbose, " %s", arg);
+    DPRINTFR(SyscallVerbose, "\n%s", "");
+    assert(new_p->zeroPages);
     // TODO: there is no way to know when the Process SimObject is done with
     // the params pointer. Both the params pointer (pp) and the process
     // pointer (p) are normally managed in python and are never cleaned up.
@@ -2468,10 +2544,19 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
      * close-on-exec.
      */
     new_p->fds = p->fds;
+
+    // DEBUG: Dump FD arrays of both.
+    std::cerr << "===== P" << std::dec << p->pid() << " =====\n";
+    p->fds->print(std::cerr);
+    std::cerr << "===== P" << std::dec << new_p->pid() << " =====\n";
+    new_p->fds->print(std::cerr);
+    
     for (int i = 0; i < new_p->fds->getSize(); i++) {
         std::shared_ptr<FDEntry> fdep = (*new_p->fds)[i];
-        if (fdep && fdep->getCOE())
+        if (fdep && fdep->getCOE()) {
+            DPRINTF_SYSCALL(Verbose, "execve: closing FD %d\n", i);
             new_p->fds->closeFDEntry(i);
+        }
     }
 
     *new_p->sigchld = true;
@@ -2486,6 +2571,8 @@ execveFunc(SyscallDesc *desc, ThreadContext *tc,
     new_p->init();
     new_p->initState();
     tc->activate();
+
+    DPRINTF_SYSCALL(Verbose, "execve: new pid: P%d\n", new_p->pid());
 
     return SyscallReturn();
 }
@@ -3406,6 +3493,14 @@ mincoreFunc(SyscallDesc *desc, ThreadContext *tc,
     return 0;
 }
 
+template <typename OS>
+SyscallReturn
+setgidFunc(SyscallDesc *desc, ThreadContext *tc, typename OS::gid_t gid)
+{
+    DPRINTF_SYSCALL(Verbose, "setgid: gid=%d\n", gid);
+    panic_if(gid != tc->getProcessPtr()->gid(), "Changing gid!\n");
+    return 0;
+}
 
 } // namespace gem5
 

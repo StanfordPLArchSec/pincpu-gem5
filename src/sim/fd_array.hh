@@ -126,6 +126,8 @@ class FDArray : public Serializable
 
     std::shared_ptr<FDEntry> tryGetFDEntry(int tgt_fd);
 
+    void print(std::ostream &os) const;
+
   private:
     /**
      * Help clarify our intention when opening files in the init and

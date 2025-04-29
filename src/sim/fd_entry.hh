@@ -78,6 +78,8 @@ class FDEntry : public Serializable
     virtual void serialize(CheckpointOut &cp) const;
     virtual void unserialize(CheckpointIn &cp);
 
+    virtual void print(std::ostream &os) const;
+
   protected:
     bool _closeOnExec;
     FDClass _class;
@@ -110,6 +112,8 @@ class HBFDEntry: public FDEntry
 
     void setFlags(int flags) { _flags = flags; }
     void setSimFD(int sim_fd) { _simFD = sim_fd; }
+
+    void print(std::ostream &os) const override;
 
   protected:
     int _flags;
@@ -154,6 +158,8 @@ class FileFDEntry: public HBFDEntry
 
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;
+
+    void print(std::ostream &os) const override;
 
   private:
     std::string _fileName;
@@ -201,6 +207,8 @@ class PipeFDEntry: public HBFDEntry
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;
 
+    void print(std::ostream &os) const override;    
+
   private:
     int _pipeReadSource;
     EndType _pipeEndType;
@@ -235,6 +243,8 @@ class DeviceFDEntry : public FDEntry
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;
 
+    void print(std::ostream &os) const override;
+    
   private:
     EmulatedDriver *_driver;
     std::string _fileName;
@@ -260,6 +270,8 @@ class SocketFDEntry: public HBFDEntry
         return std::make_shared<SocketFDEntry>(*this);
     }
 
+    void print(std::ostream &os) const override;
+    
     int _domain;
     int _type;
     int _protocol;

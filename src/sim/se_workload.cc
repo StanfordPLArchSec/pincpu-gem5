@@ -31,6 +31,8 @@
 #include "params/SEWorkload.hh"
 #include "sim/process.hh"
 #include "sim/system.hh"
+#include "mem/physical.hh"
+#include "mem/abstract_mem.hh"
 
 namespace gem5
 {
@@ -81,6 +83,9 @@ void
 SEWorkload::deallocPhysPage(Addr paddr, int pool_id)
 {
     memPools.deallocPhysPages(paddr, 1, pool_id);
+    uint8_t *base = (uint8_t *) system->getPhysMem().backingStore[pool_id].pmem + paddr;
+    for (size_t i = 0; i < 4096; ++i)
+      assert(base[i] == 0);
 }
 
 Addr

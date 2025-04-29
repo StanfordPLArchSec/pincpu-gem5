@@ -277,6 +277,9 @@ class SymbolTable
     /** @return An iterator to the end of the symbol vector. */
     const_iterator end() const { return symbols.end(); }
 
+    iterator begin() { return symbols.begin(); }
+    iterator end() { return symbols.end(); }
+
     /** Clears the table. */
     void clear();
 

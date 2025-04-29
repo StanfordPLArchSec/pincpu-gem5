@@ -859,9 +859,22 @@ InterceptSEGV(THREADID tid, int32_t sig, CONTEXT *ctx, bool has_handler, const E
     std::cerr << "CLIENT: Encountered SEGV: " << info->ToString() << "\n";
 
     const auto code = PIN_GetExceptionCode(info);
+
     const auto ex_class = PIN_GetExceptionClass(code);
     if (ex_class != EXCEPTCLASS_ACCESS_FAULT) {
         std::cerr << "CLIENT: unexpected exception class (" << ex_class << ")\n";
+
+        // Get bytes at PC.
+        char inst[16];
+        int bytes = PIN_SafeCopy(inst, (const void *) info->GetExceptAddress(), sizeof inst);
+        std::cerr << "instruction bytes:";
+        for (int i = 0; i < bytes; ++i) {
+            char buf[8];
+            sprintf(buf, "%02hhx", inst[i]);
+            std::cerr << " " << buf;
+        }
+        std::cerr << "\n";
+        
         return true;
     }
 

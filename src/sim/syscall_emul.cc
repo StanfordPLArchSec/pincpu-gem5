@@ -372,6 +372,8 @@ unlinkFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> pathname)
     if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
         return -EFAULT;
 
+    DPRINTF_SYSCALL(Verbose, "unlink: tgt_path=@'%s'\n", path);
+
     return unlinkImpl(desc, tc, path);
 }
 
@@ -380,6 +382,8 @@ unlinkImpl(SyscallDesc *desc, ThreadContext *tc, std::string path)
 {
     auto p = tc->getProcessPtr();
     path = p->checkPathRedirect(path);
+
+    DPRINTF_SYSCALL(Verbose, "unlink: sim_path=@'%s'\n", path);
 
     int result = unlink(path.c_str());
     return (result == -1) ? -errno : result;
@@ -399,8 +403,14 @@ linkFunc(SyscallDesc *desc, ThreadContext *tc,
     if (!virt_mem.tryReadString(new_path, new_pathname))
         return -EFAULT;
 
-    path = p->absolutePath(path, true);
-    new_path = p->absolutePath(new_path, true);
+    DPRINTF_SYSCALL(Verbose, "link: %s -> %s\n",
+                    path, new_path);
+
+    path = p->checkPathRedirect(path);
+    new_path = p->checkPathRedirect(new_path);
+
+    DPRINTF_SYSCALL(Verbose, "link: %s -> %s\n",
+                    path, new_path);
 
     int result = link(path.c_str(), new_path.c_str());
     return (result == -1) ? -errno : result;
@@ -434,6 +444,8 @@ mkdirFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> pathname, mode_t mode)
     if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
         return -EFAULT;
 
+    DPRINTF_SYSCALL(Verbose, "mkdir: %s\n", path);
+
     return mkdirImpl(desc, tc, path, mode);
 }
 
@@ -442,6 +454,8 @@ mkdirImpl(SyscallDesc *desc, ThreadContext *tc, std::string path, mode_t mode)
 {
     auto p = tc->getProcessPtr();
     path = p->checkPathRedirect(path);
+
+    DPRINTF_SYSCALL(Verbose, "mkdir: %s\n", path);
 
     auto result = mkdir(path.c_str(), mode);
     return (result == -1) ? -errno : result;
@@ -602,6 +616,7 @@ dupFunc(SyscallDesc *desc, ThreadContext *tc, int tgt_fd)
     return p->fds->allocFD(new_hbfdp);
 }
 
+// TODO: Add a COE argument.
 SyscallReturn
 dup2Func(SyscallDesc *desc, ThreadContext *tc, int old_tgt_fd, int new_tgt_fd)
 {
@@ -626,8 +641,8 @@ dup2Func(SyscallDesc *desc, ThreadContext *tc, int old_tgt_fd, int new_tgt_fd)
     new_hbp = std::dynamic_pointer_cast<HBFDEntry>(old_hbp->clone());
     new_hbp->setSimFD(res_fd);
     new_hbp->setCOE(false);
-
-    return p->fds->allocFD(new_hbp);
+    p->fds->setFDEntry(new_tgt_fd, new_hbp);
+    return new_tgt_fd;
 }
 
 SyscallReturn
@@ -666,18 +681,34 @@ fcntlFunc(SyscallDesc *desc, ThreadContext *tc,
         return (rv == -1) ? -errno : rv;
       }
 
-      case F_DUPFD: {
+        // TODO: These constants should be defined in OS::TGT_F_*.
+      case F_DUPFD:
+      case F_DUPFD_CLOEXEC: {
           int min_new_fd = varargs.get<int>();
           // Find least available file descriptor greater than or equal
           // to min_new_fd.
           int new_fd;
           for (new_fd = min_new_fd; (*p->fds)[new_fd]; ++new_fd)
               ;
-          return dup2Func(desc, tc, tgt_fd, new_fd);
+          const SyscallReturn dup_result = dup2Func(desc, tc, tgt_fd, new_fd);
+          panic_if(!dup_result.successful(), "dup2 ought to succeed!\n");
+          DPRINTF_SYSCALL(Verbose, "dup2: %d\n", min_new_fd);
+          assert(dup_result.returnValue() == new_fd);
+          if (cmd == F_DUPFD_CLOEXEC) {
+              const auto new_hbfdp =
+                  std::dynamic_pointer_cast<HBFDEntry>(p->fds->tryGetFDEntry(new_fd));
+              assert(new_hbfdp);
+              new_hbfdp->setCOE(true);
+          }
+          return new_fd;
       }
 
+      case F_SETLK:
+        warn("ignoring F_SETLK\n");
+        return 0;
+
       default:
-        warn("fcntl: unsupported command %d\n", cmd);
+        fatal("fcntl: unsupported command %d\n", cmd);
         return 0;
     }
 }
@@ -802,8 +833,12 @@ pipe2Func(SyscallDesc *desc, ThreadContext *tc, VPtr<> tgt_addr, int flags)
         if (flags & O_CLOEXEC) {
             rpfd->setCOE(true);
             wpfd->setCOE(true);
+            DPRINTF_SYSCALL(Verbose, "pipe2: setting as CLOEXEC: %d %d\n",
+                            tgt_fds[0], tgt_fds[1]);
         }
     }
+
+    DPRINTF_SYSCALL(Verbose, "pipe2: %d %d\n", tgt_fds[0], tgt_fds[1]);
 
     return 0;
 }
@@ -906,6 +941,8 @@ accessFunc(SyscallDesc *desc, ThreadContext *tc,
     if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
         return -EFAULT;
 
+    DPRINTF_SYSCALL(Verbose, "access: %s\n", path);
+    
     return accessImpl(desc, tc, path, mode);
 }
 
@@ -962,14 +999,18 @@ chdirFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> pathname)
     }
     std::string host_cwd = p->checkPathRedirect(tgt_cwd);
 
-    int result = chdir(host_cwd.c_str());
-
-    if (result == -1)
+    // Check if chdir() would succeed.
+    if (access(host_cwd.c_str(), X_OK) < 0)
         return -errno;
+    struct stat st;
+    if (stat(host_cwd.c_str(), &st) < 0)
+        return -errno;
+    if (!S_ISDIR(st.st_mode))
+        return -ENOTDIR;
 
     p->hostCwd = host_cwd;
     p->tgtCwd = tgt_cwd;
-    return result;
+    return 0;
 }
 
 SyscallReturn
@@ -1086,6 +1127,7 @@ shutdownFunc(SyscallDesc *desc, ThreadContext *tc, int tgt_fd, int how)
     return (retval == -1) ? -errno : retval;
 }
 
+// TODO: Make all definitions OS-dependent.
 SyscallReturn
 bindFunc(SyscallDesc *desc, ThreadContext *tc,
          int tgt_fd, VPtr<> buf_ptr, int addrlen)
@@ -1100,9 +1142,47 @@ bindFunc(SyscallDesc *desc, ThreadContext *tc,
         return -EBADF;
     int sim_fd = sfdp->getSimFD();
 
-    int status = ::bind(sim_fd,
-                        (struct sockaddr *)bufSock.bufferPtr(),
-                        addrlen);
+    struct sockaddr *tgt_sa = (struct sockaddr *) bufSock.bufferPtr();
+    struct sockaddr *sim_sa = nullptr;
+    struct sockaddr_un sim_sun;
+    socklen_t sim_addrlen = 0;
+    switch (tgt_sa->sa_family) {
+      case AF_LOCAL: {
+          struct sockaddr_un *tgt_sun = (struct sockaddr_un *) tgt_sa;
+          sim_sun.sun_family = AF_LOCAL;
+          std::string tgt_path(tgt_sun->sun_path, addrlen - offsetof(struct sockaddr_un, sun_path));
+
+          // Handle abstract sockets, which start with NUL.
+          bool abstract = false;
+          if (tgt_path.front() == '\0') {
+              abstract = true;
+              tgt_path.erase(0);
+          }
+          
+          std::string sim_path = p->checkPathRedirect(tgt_path);
+          DPRINTF_SYSCALL(Verbose, "bind: AF_LOCAL tgt_path=@'%s' sim_path=@'%s' abstract=%d\n",
+                          tgt_path, sim_path, abstract);
+          if (abstract)
+              sim_path.insert(sim_path.begin(), '\0');
+          panic_if(sim_path.size() > sizeof sim_sun.sun_path, "Host-redirected path doesn't fit!\n");
+          std::memcpy(sim_sun.sun_path, sim_path.data(), sim_path.size());
+          sim_sa = (struct sockaddr *) &sim_sun;
+          sim_addrlen = offsetof(struct sockaddr_un, sun_path) + sim_path.size();
+          break;
+      }
+
+      case AF_INET6:
+      case AF_NETLINK: {
+          sim_sa = (struct sockaddr *) tgt_sa;
+          sim_addrlen = addrlen;
+          break;
+      }
+        
+      default:
+        panic("Didn't handle bind family %d!\n", tgt_sa->sa_family);
+    }
+
+    int status = ::bind(sim_fd, sim_sa, sim_addrlen);
 
     return (status == -1) ? -errno : status;
 }
@@ -1304,6 +1384,13 @@ sendmsgFunc(SyscallDesc *desc, ThreadContext *tc,
     msgBuf.copyIn(proxy);
     struct msghdr msgHdr = *((struct msghdr *)msgBuf.bufferPtr());
 
+    // Copy in msg_name.
+    BufferArg msg_name((Addr) msgHdr.msg_name, msgHdr.msg_namelen);
+    msg_name.copyIn(proxy);
+    msgHdr.msg_name = msg_name.bufferPtr();
+
+    panic_if(msgHdr.msg_controllen, "msg control specified!\n");
+
     /**
      * Assuming msgHdr.msg_iovlen >= 1, then there is no point calling
      * recvmsg without a buffer.
@@ -1354,9 +1441,30 @@ sendmsgFunc(SyscallDesc *desc, ThreadContext *tc,
 }
 
 SyscallReturn
+sendmmsgFunc(SyscallDesc *desc, ThreadContext *tc,
+             int tgt_fd, VPtr<> msg_vec, unsigned int vlen, int flags)
+{
+    DPRINTF_SYSCALL(Verbose, "sendmmsg: fd=%d msg_vec=%p vlen=%d flags=%#x\n",
+                    tgt_fd, static_cast<Addr>(msg_vec), vlen, flags);
+    for (unsigned int i = 0; i < vlen; ++i) {
+        DPRINTF_SYSCALL(Verbose, "sendmmsg: handling msg %d\n", i);
+        auto res = sendmsgFunc(desc, tc, tgt_fd,
+                               msg_vec + i * sizeof(struct mmsghdr), flags);
+        if (!res.successful())
+            return res;
+        VPtr<> msg_len_ptr = msg_vec + i * sizeof(struct mmsghdr) + offsetof(struct mmsghdr, msg_len);
+        TypedBufferArg<unsigned int> msg_len_buf(msg_len_ptr);
+        *msg_len_buf = res.returnValue();
+        msg_len_buf.copyOut(SETranslatingPortProxy(tc));
+    }
+    return vlen;
+}
+
+// TODO: socklen_t -> OS::socklen_t.
+SyscallReturn
 getsockoptFunc(SyscallDesc *desc, ThreadContext *tc,
                int tgt_fd, int level, int optname, VPtr<> valPtr,
-               VPtr<> lenPtr)
+               VPtr<socklen_t> lenPtr)
 {
     // union of all possible return value types from getsockopt
     union val
@@ -1382,15 +1490,14 @@ getsockoptFunc(SyscallDesc *desc, ThreadContext *tc,
 
     SETranslatingPortProxy proxy(tc);
 
-    // copy val to valPtr and pass it on
-    BufferArg valBuf(valPtr, sizeof(val));
-    memcpy(valBuf.bufferPtr(), &val, sizeof(val));
-    valBuf.copyOut(proxy);
+    panic_if(*lenPtr < len, "Provided buffer (%u) is less than requied (%u)\n",
+             *lenPtr, len);
 
-    // copy len to lenPtr and pass  it on
-    BufferArg lenBuf(lenPtr, sizeof(len));
-    memcpy(lenBuf.bufferPtr(), &len, sizeof(len));
-    lenBuf.copyOut(proxy);
+    // copy val to valPtr and pass it on
+    BufferArg valBuf(valPtr, len);
+    memcpy(valBuf.bufferPtr(), &val, len);
+    valBuf.copyOut(proxy);
+    *lenPtr = len;
 
     return status;
 }
@@ -1522,6 +1629,73 @@ epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags)
     auto p = tc->getProcessPtr();
     const int tgt_fd = p->fds->allocFD(hbfdp);
     return tgt_fd;
+}
+
+// TODO: Should parameterize by OS.
+SyscallReturn
+epoll_ctlFunc(SyscallDesc *desc, ThreadContext *tc,
+              int tgt_epfd, int op, int tgt_fd, VPtr<struct epoll_event> event)
+{
+    DPRINTF_SYSCALL(Verbose, "epoll_ctl: epfd=%d op=%d fd=%d event=%#x\n",
+                    tgt_epfd, op, tgt_fd, event);
+    
+    // Get sim fds.
+    auto p = tc->getProcessPtr();
+    const auto hbepfdp = std::dynamic_pointer_cast<HBFDEntry>(p->fds->tryGetFDEntry(tgt_epfd));
+    const auto hbfdp = std::dynamic_pointer_cast<HBFDEntry>(p->fds->tryGetFDEntry(tgt_fd));
+    panic_if(!hbepfdp || !hbfdp, "Not handling bad FDs currently\n");
+    const int sim_epfd = hbepfdp->getSimFD();
+    const int sim_fd = hbfdp->getSimFD();
+
+    if (epoll_ctl(sim_epfd, op, sim_fd, &*event) < 0)
+        panic("epoll_ctl failed: %s\n", strerror(errno));
+
+    return 0;
+}
+
+SyscallReturn
+epoll_waitFunc(SyscallDesc *desc, ThreadContext *tc,
+                             int tgt_epfd, VPtr<> tgt_events,
+                             int maxevents, int timeout)
+{
+    const auto p = tc->getProcessPtr();
+
+    // Get sim fd.
+    const auto hbepfdp = std::dynamic_pointer_cast<HBFDEntry>(p->fds->tryGetFDEntry(tgt_epfd));
+    if (!hbepfdp)
+        return -EBADF;
+    const int sim_epfd = hbepfdp->getSimFD();
+
+    std::vector<struct epoll_event> sim_events(maxevents);
+
+    warn_if_once(timeout > -1, "epoll_wait called with timeout -- this may result in non-deterministic execution!\n");
+    
+    const int ready = epoll_wait(sim_epfd, sim_events.data(), sim_events.size(), 0);
+    if (ready < 0)
+        panic("epoll_wait failed!\n");
+    if (ready == 0 && timeout != 0)
+        return SyscallReturn::retry();
+
+    // Translate sim_events into tgt_events.
+    const std::size_t outsize = sizeof(struct epoll_event) * ready;
+    BufferArg tgt_events_buf(tgt_events, outsize);
+    std::memcpy(tgt_events_buf.bufferPtr(), sim_events.data(), outsize);
+    tgt_events_buf.copyOut(SETranslatingPortProxy(tc));
+
+    return ready;
+}
+
+SyscallReturn
+ioplFunc(SyscallDesc *desc, ThreadContext *tc, int level)
+{
+    return -ENOSYS;
+}
+
+SyscallReturn
+memfd_createFunc(SyscallDesc *desc, ThreadContext *tc,
+                 VPtr<> name, unsigned int flags)
+{
+    return -ENFILE;
 }
 
 } // namespace gem5

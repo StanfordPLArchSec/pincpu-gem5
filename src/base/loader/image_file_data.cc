@@ -118,7 +118,7 @@ ImageFileData::ImageFileData(const std::string &fname)
     _len = static_cast<size_t>(off);
 
     // Mmap the whole shebang.
-    _data = (uint8_t *)mmap(NULL, _len, PROT_READ, MAP_SHARED, fd, 0);
+    _data = (uint8_t *)mmap(NULL, _len, PROT_READ, MAP_PRIVATE, fd, 0);
     close(fd);
 
     panic_if(_data == MAP_FAILED, "Failed to mmap file %s.\n", fname);

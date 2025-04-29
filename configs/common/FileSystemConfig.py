@@ -121,24 +121,24 @@ def config_filesystem(system, options=None):
 
     for i, cpu in enumerate(cpus):
         one_cpu = (
-            "processor       : {proc}\n"
-            + "vendor_id       : Generic\n"
-            + "cpu family      : 0\n"
-            + "model           : 0\n"
-            + "model name      : Generic\n"
-            + "stepping        : 0\n"
-            + "cpu MHz         : {clock:0.3f}\n"
-            + "cache size:     : {l2_size}K\n"
-            + "physical id     : 0\n"
-            + "siblings        : {num_cpus}\n"
-            + "core id         : {proc}\n"
-            + "cpu cores       : {num_cpus}\n"
-            + "fpu             : yes\n"
-            + "fpu exception   : yes\n"
-            + "cpuid level     : 1\n"
-            + "wp              : yes\n"
-            + "flags           : fpu\n"
-            + "cache alignment : {cacheline_size}\n"
+            "processor\t: {proc}\n"
+            + "vendor_id\t: Generic\n"
+            + "cpu family\t: 0\n"
+            + "model\t: 0\n"
+            + "model name\t: Generic\n"
+            + "stepping\t: 0\n"
+            + "cpu MHz\t: {clock:0.3f}\n"
+            + "cache size\t: {l2_size}K\n"
+            + "physical id\t: 0\n"
+            + "siblings\t: {num_cpus}\n"
+            + "core id\t: {proc}\n"
+            + "cpu cores\t: {num_cpus}\n"
+            + "fpu\t: yes\n"
+            + "fpu exception\t: yes\n"
+            + "cpuid level\t: 1\n"
+            + "wp\t: yes\n"
+            + "flags\t: fpu\n"
+            + "cache alignment\t: {cacheline_size}\n"
             + "\n"
         )
         one_cpu = one_cpu.format(
@@ -171,6 +171,9 @@ def config_filesystem(system, options=None):
     # Set up /tmp
     tmpdir = joinpath(fsdir, "tmp")
     replace_tree(tmpdir)
+
+    tmpuserdir = joinpath(tmpdir, "user", str(os.getuid()))
+    makedirs(tmpuserdir)
 
     system.redirect_paths = _redirect_paths(options)
 

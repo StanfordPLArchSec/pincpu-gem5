@@ -23,7 +23,7 @@ class CPU final : public BaseCPU
     CPU(const BasePinCPUParams &params);
 
     void init() override;
-    void startup() override;
+    void restartPin();
 
     void serializeThread(CheckpointOut &cp, ThreadID tid) const override;
     
@@ -58,6 +58,7 @@ class CPU final : public BaseCPU
     {
         Idle,
         Running,
+        Halted,
     };
 
   private:    

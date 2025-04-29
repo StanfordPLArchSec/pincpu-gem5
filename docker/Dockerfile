@@ -9,3 +9,5 @@ RUN apt-get install -y python3-pip python-is-python3
 RUN apt-get install -y python3-six scons
 RUN apt-get install -y cmake emacs-nox
 RUN apt-get install -y gdb lldb
+RUN apt-get install -y strace
+

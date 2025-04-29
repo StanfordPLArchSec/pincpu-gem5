@@ -66,6 +66,7 @@
 #include "sim/se_workload.hh"
 #include "sim/syscall_desc.hh"
 #include "sim/system.hh"
+#include "debug/Process.hh"
 
 namespace gem5
 {
@@ -165,10 +166,11 @@ Process::Process(const ProcessParams &params, EmulationPageTable *pTable,
      * Set the base of dynamically linked executables to Linux's default
      * (when ASLR is disabled).
      */
-    if (objFile->getInterpreter() && objFile->bias() == 0)
+    if (objFile->relocatable() && objFile->bias() == 0)
         objFile->updateBias(0x0000555555554000ULL);
 
     image = objFile->buildImage();
+    panic_if(image.minAddr() == 0, "Image's min addr is 0!\n");
 
     if (loader::debugSymbolTable.empty())
         loader::debugSymbolTable = objFile->symtab();
@@ -178,18 +180,8 @@ void
 Process::clone(ThreadContext *otc, ThreadContext *ntc,
                Process *np, RegVal flags)
 {
-#ifndef CLONE_VM
-#define CLONE_VM 0
-#endif
-#ifndef CLONE_FILES
-#define CLONE_FILES 0
-#endif
-#ifndef CLONE_THREAD
-#define CLONE_THREAD 0
-#endif
-#ifndef CLONE_VFORK
-#define CLONE_VFORK 0
-#endif
+    // TODO: Use target versions for this...
+    // TODO: Need to check if there are flags we're not handling.
     if (CLONE_VM & flags) {
         /**
          * Share the process memory address space between the new process
@@ -200,6 +192,8 @@ Process::clone(ThreadContext *otc, ThreadContext *ntc,
         np->pTable = pTable;
 
         np->memState = memState;
+
+        DPRINTF(Process, "Process::clone: CLONE_VM\n");
     } else {
         /**
          * Duplicate the process memory address space. The state needs to be
@@ -241,6 +235,7 @@ Process::clone(ThreadContext *otc, ThreadContext *ntc,
                 continue;
             }
             nfds->setFDEntry(tgt_fd, this_fde->clone());
+            (*nfds)[tgt_fd]->setCOE(this_fde->getCOE());
 
             auto this_hbfd = std::dynamic_pointer_cast<HBFDEntry>(this_fde);
             if (!this_hbfd)
@@ -304,9 +299,6 @@ Process::initState()
     // first thread context for this process... initialize & enable
     ThreadContext *tc = system->threads[contextIds[0]];
 
-    // mark this context as active so it will start ticking.
-    tc->activate();
-
     pTable->initState();
 
     initVirtMem.reset(new SETranslatingPortProxy(
@@ -315,6 +307,9 @@ Process::initState()
     // load object file into target memory
     image.write(*initVirtMem);
     interpImage.write(*initVirtMem);
+
+    // mark this context as active so it will start ticking.
+    tc->activate();    
 }
 
 DrainState
@@ -368,6 +363,7 @@ Process::deallocateMem(Addr vaddr, int64_t size)
         const Addr page_vaddr = page_vbase + page_size * i;
         Addr page_paddr;
         if (pTable->translate(page_vaddr, page_paddr)) {
+            assert(zeroPages);
             if (zeroPages) {
                 // Zero out the physical page upon deallocation.
                 // Pages that have never been allocated before are already
@@ -596,15 +592,21 @@ ProcessParams::create() const
             panic("getline: error\n");
         if (char *newline = strchr(line, '\n'))
             *newline = '\0';
-        if (strchr(line, ' '))
-            panic("argument to interpreter not supported yet!\n");
-        const std::string interpreter = line;
-        free(line);
+        char *s = line;
+        const char *interpreter_path = strsep(&s, " ");
+        const char *interpreter_arg = strsep(&s, " ");
+        panic_if(s, "Bad interpreter: leftover tokens: %s\n", s);
         ProcessParams params = *this;
         // TODO: Should actually do p->checkPathRedirect()...
         params.cmd[0] = params.executable;
-        params.executable = interpreter;
+        if (interpreter_arg) {
+            warn_if(!*interpreter_arg, "empty interperter argument: '%s'\n",
+                    interpreter_arg);
+            params.cmd.insert(params.cmd.begin(), interpreter_arg);
+        }
+        params.executable = interpreter_path;
         params.cmd.insert(params.cmd.begin(), params.executable);
+        free(line);
         return params.create();
     }
     
@@ -618,6 +620,8 @@ ProcessParams::create() const
 
     Process *process = Process::tryLoaders(*this, obj_file);
     fatal_if(!process, "Unknown error creating process object.");
+    std::cerr << "Loaded process " << process->pid() << " image at " << std::hex << process->image.minAddr() << std::endl;
+    std::cerr << "Loaded interpreter image at " << std::hex << process->interpImage.minAddr() << std::endl;
 
     return process;
 }

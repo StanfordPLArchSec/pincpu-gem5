@@ -159,6 +159,8 @@ SimpleThread::halt()
     if (status() == ThreadContext::Halted)
         return;
 
+    getMMUPtr()->flushAll();
+
     _status = ThreadContext::Halted;
     baseCpu->haltContext(_threadId);
 }

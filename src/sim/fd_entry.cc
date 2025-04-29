@@ -31,6 +31,9 @@
 
 #include "sim/fd_entry.hh"
 
+#include <map>
+#include <unistd.h>
+
 #include "sim/serialize.hh"
 
 namespace gem5
@@ -98,6 +101,74 @@ DeviceFDEntry::unserialize(CheckpointIn &cp)
     UNSERIALIZE_SCALAR(_closeOnExec);
     //UNSERIALIZE_SCALAR(_driver);
     UNSERIALIZE_SCALAR(_fileName);
+}
+
+void
+FDEntry::print(std::ostream &os) const
+{
+    static const std::map<FDClass, std::string> class_map = {
+        {fd_base, "base"},
+        {fd_hb, "hb"},
+        {fd_file, "file"},
+        {fd_pipe, "pipe"},
+        {fd_device, "device"},
+        {fd_socket, "socket"},
+        {fd_null, "null"},
+    };
+    os << "class=" << class_map.at(_class) << " coe=" << _closeOnExec;
+}
+
+void
+HBFDEntry::print(std::ostream &os) const
+{
+    FDEntry::print(os);
+    os << " sim_fd=" << std::dec << _simFD << " flags=0x" << std::hex << _flags;
+
+    char buf[64];
+    sprintf(buf, "/proc/self/fd/%d", getSimFD());
+    char link[1024];
+    const ssize_t len = readlink(buf, link, sizeof link);
+    if (len < 0)
+        panic("readlink: %s\n", buf);
+    link[len] = '\0';
+    os << " procfs=" << link;
+}
+
+void
+FileFDEntry::print(std::ostream &os) const
+{
+    HBFDEntry::print(os);
+    os << " filename=" << _fileName << " offset=" << std::dec << _fileOffset << " mode=0x" << std::hex << _mode;
+}
+
+void
+PipeFDEntry::print(std::ostream &os) const
+{
+    HBFDEntry::print(os);
+    os << " pipe_read_source=" << std::dec << _pipeReadSource << " pipe_end_type=";
+    switch (_pipeEndType) {
+      case read:
+        os << "read";
+        break;
+      case write:
+        os << "write";
+        break;
+      default: panic("Bad pipe end type!\n");
+    }
+}
+
+void
+DeviceFDEntry::print(std::ostream &os) const
+{
+    FDEntry::print(os);
+    os << " filename=" << _fileName;
+}
+
+void
+SocketFDEntry::print(std::ostream &os) const
+{
+    HBFDEntry::print(os);
+    os << " domain=" << std::dec << _domain << " type=" << _type << " protocol=" << _protocol;
 }
 
 } // namespace gem5

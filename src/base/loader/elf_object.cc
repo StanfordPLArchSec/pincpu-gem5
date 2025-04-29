@@ -476,6 +476,10 @@ ElfObject::updateBias(Addr bias_addr)
 
     // Patch segments with the bias_addr.
     image.offset(bias_addr);
+
+    // Update symbol table.
+    for (Symbol &sym : _symtab)
+        sym.relocate(sym.address() + bias_addr);
 }
 
 } // namespace loader

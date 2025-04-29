@@ -10,6 +10,7 @@
 
 #define STDERR_FILENO 2
 #define ENOMEM 12
+#define EINVAL 22
 
 #include "cpu/pin/message.hh"
 #include "syscall.h"
@@ -282,7 +283,11 @@ void main_event_loop(void) {
                 if (munmap((void *) msg.map.vaddr, msg.map.size) < 0) {
                     printf_("error: munmap failed (%d): vaddr=%p size=0x%x\n",
                             errno, msg.map.vaddr, msg.map.size);
-                    pinop_abort();
+                    if (errno == EINVAL && msg.map.size == 0x1000) {
+                        printf_("warn: assuming that the page was just never touched in the first place\n");
+                    } else {
+                        pinop_abort();
+                    }
                 }
                 printf_("unmapped page: %p\n", (void*) msg.map.vaddr);
                 msg.type = Ack;

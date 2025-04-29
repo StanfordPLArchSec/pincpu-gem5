@@ -174,6 +174,7 @@ MemState::mapRegion(Addr start_addr, Addr length,
 {
     DPRINTF(Vma, "memstate: creating vma (%s) [0x%x - 0x%x]\n",
             region_name.c_str(), start_addr, start_addr + length);
+    panic_if(start_addr == 0, "Tried to map virtual address 0 (length %u)!\n", length);
 
     /**
      * Avoid creating a region that has preexisting mappings. This should

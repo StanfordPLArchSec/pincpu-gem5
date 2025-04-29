@@ -55,6 +55,9 @@ SyscallDesc::doSyscall(ThreadContext *tc)
     }
 
     handleReturn(tc, retval);
+
+    DPRINTFR(SyscallVerbose, "SYSTRACE %d %d %d\n", tc->getProcessPtr()->pid(), num(), retval.encodedValue());
+    DPRINTF_SYSCALL(Verbose, "pc %s\n", tc->pcState());
 }
 
 void

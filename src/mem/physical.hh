@@ -136,7 +136,7 @@ class BackingStoreEntry
 class PhysicalMemory : public Serializable
 {
 
-  private:
+  public:
 
     // Name for debugging
     std::string _name;

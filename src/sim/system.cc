@@ -61,6 +61,7 @@
 #include "sim/debug.hh"
 #include "sim/redirect_path.hh"
 #include "sim/serialize_handlers.hh"
+#include "sim/process.hh"
 
 namespace gem5
 {
@@ -544,6 +545,22 @@ System::getRequestorName(RequestorID requestor_id)
 
     const auto& requestor_info = requestors[requestor_id];
     return requestor_info.req_name;
+}
+
+void
+System::dumpFDArrays()
+{
+    std::set<int> pids;
+    std::ostream &os = std::cerr;
+    for (ThreadContext *tc : threads) {
+        if (const auto p = tc->getProcessPtr()) {
+            if (pids.insert(p->pid()).second) {
+                os << "=== P" << std::dec << p->pid() << " ===\n";
+                p->fds->print(os);
+                os << "\n\n\n";
+            }
+        }
+    }
 }
 
 } // namespace gem5
