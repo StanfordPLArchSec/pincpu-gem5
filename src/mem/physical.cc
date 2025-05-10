@@ -470,13 +470,13 @@ PhysicalMemory::serializeStorePaged(CheckpointOut &cp, unsigned int store_id,
     // Memory pages.
     assert((range.size() & (pageSize - 1)) == 0);
     for (std::size_t i = 0; i != range.size(); i += pageSize) {
-        Page page(&mem[i], &mem[i + pageSize]);
-        const auto res = pages.emplace(std::move(page), pages.size());
+        // Hash the page.
+        const Sha256Hash page_hash = sha256(&mem[i], pageSize);
+        const auto res = pages.emplace(page_hash, pages.size());
         const PageId id = res.first->second;
         if (res.second) {
             // Added new page; write out to page file.
-            const Page &page = res.first->first;
-            if (gzwrite(file_pages, page.data(), page.size()) != page.size())
+            if (gzwrite(file_pages, &mem[i], pageSize) != pageSize)
                 fatal("Failed to write page data\n");
         }
         if (std::fwrite(&id, sizeof id, 1, file_ids) != 1)

@@ -61,6 +61,8 @@ Import('*')
 if env['CONF']['USE_EFENCE']:
     env.Append(LIBS=['efence'])
 
+env.Append(LIBS=["ssl", "crypto"])
+
 # Children need to see the environment
 Export('env')
 

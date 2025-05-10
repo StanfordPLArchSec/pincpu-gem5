@@ -47,6 +47,7 @@
 #include "base/stl_helpers/hash_helpers.hh"
 #include "mem/packet.hh"
 #include "sim/serialize.hh"
+#include "base/sha256.hh"
 
 namespace gem5
 {
@@ -167,9 +168,9 @@ class PhysicalMemory : public Serializable
     bool serializeUsingPagelist;
     mutable std::string pagelistPath;
 
-    using Page = std::vector<uint8_t>;
+    using PageHash = Sha256Hash;
     using PageId = uint32_t;
-    mutable stl_helpers::unordered_map<Page, PageId> pages;
+    mutable stl_helpers::unordered_map<PageHash, PageId> pages;
 
     // Prevent copying
     PhysicalMemory(const PhysicalMemory&);
