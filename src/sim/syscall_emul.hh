@@ -952,7 +952,7 @@ openatFunc(SyscallDesc *desc, ThreadContext *tc,
      * Return the indirect target file descriptor back to the simulated
      * process to act as a handle for the opened file.
      */
-    auto ffdp = std::make_shared<FileFDEntry>(sim_fd, host_flags, path, 0);
+    auto ffdp = std::make_shared<FileFDEntry>(sim_fd, host_flags, redir_path, 0);
     // Record the file mode for checkpoint restoring
     ffdp->setFileMode(mode);
     int tgt_fd = p->fds->allocFD(ffdp);
