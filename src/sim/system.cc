@@ -175,7 +175,7 @@ System::System(const Params &p)
       workload(p.workload),
       physmem(name() + ".physmem", p.memories, p.mmap_using_noreserve,
               p.shared_backstore, p.auto_unlink_shared_backstore,
-              p.anonymous_shared_backstore),
+              p.anonymous_shared_backstore, p.use_pagelist),
       ShadowRomRanges(p.shadow_rom_ranges.begin(),
                       p.shadow_rom_ranges.end()),
       memoryMode(p.mem_mode),
