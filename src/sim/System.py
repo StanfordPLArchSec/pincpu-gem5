@@ -113,6 +113,11 @@ class System(SimObject):
         "shared_backstore is non-empty.",
     )
 
+    use_pagelist = Param.Bool(
+        True,
+        "Use pagelists when checkpointing",
+    )
+
     cache_line_size = Param.Unsigned(64, "Cache line size in bytes")
 
     redirect_paths = VectorParam.RedirectPath([], "Path redirections")

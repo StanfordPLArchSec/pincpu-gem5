@@ -44,6 +44,7 @@
 
 #include "base/addr_range.hh"
 #include "base/addr_range_map.hh"
+#include "base/stl_helpers/hash_helpers.hh"
 #include "mem/packet.hh"
 #include "sim/serialize.hh"
 
@@ -162,6 +163,13 @@ class PhysicalMemory : public Serializable
     // system
     std::vector<BackingStoreEntry> backingStore;
 
+    bool serializeUsingPagelist;
+    mutable std::string pagelistPath;
+
+    using Page = std::vector<uint8_t>;
+    using PageId = uint32_t;
+    mutable stl_helpers::unordered_map<Page, PageId> pages;
+
     // Prevent copying
     PhysicalMemory(const PhysicalMemory&);
 
@@ -191,7 +199,8 @@ class PhysicalMemory : public Serializable
                    const std::vector<AbstractMemory*>& _memories,
                    bool mmap_using_noreserve,
                    const std::string& shared_backstore,
-                   bool auto_unlink_shared_backstore);
+                   bool auto_unlink_shared_backstore,
+                   bool serialize_using_pagelist);
 
     /**
      * Unmap all the backing store we have used.
@@ -284,6 +293,11 @@ class PhysicalMemory : public Serializable
     void serializeStore(CheckpointOut &cp, unsigned int store_id,
                         AddrRange range, uint8_t* pmem) const;
 
+    void serializeStoreUnpaged(CheckpointOut &cp, unsigned int store_id,
+                               AddrRange range, uint8_t *pmem) const;
+    void serializeStorePaged(CheckpointOut &cp, unsigned int store_id,
+                             AddrRange range, uint8_t *pmem) const;
+
     /**
      * Unserialize the memories in the system. As with the
      * serialization, this action is independent of how the address
@@ -295,6 +309,12 @@ class PhysicalMemory : public Serializable
      * Unserialize a specific backing store, identified by a section.
      */
     void unserializeStore(CheckpointIn &cp);
+    void unserializeStoreUnpaged(CheckpointIn &cp, unsigned int store_id,
+                                 const std::string &filename);
+
+    void unserializeStorePaged(CheckpointIn &cp, unsigned int store_id,
+                               const std::string &filename_pages,
+                               const std::string &filename_ids);
 
 };
 
