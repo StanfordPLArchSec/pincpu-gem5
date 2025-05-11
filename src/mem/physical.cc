@@ -539,12 +539,6 @@ PhysicalMemory::unserializeStoreUnpaged(CheckpointIn &cp, unsigned int store_id,
     Addr range_size;
     UNSERIALIZE_SCALAR(range_size);
 
-    if (lazyCheckpointMem) {
-        memories[0]->setLazyUnpaged(compressed_mem, range_size,
-                                    32ULL * 1024 * 1024 /*32MiB*/);
-        return;
-    }
-
     DPRINTF(Checkpoint, "Unserializing physical memory %s with size %d\n",
             filename, range_size);
 
