@@ -597,26 +597,40 @@ PhysicalMemory::unserializeStorePaged(CheckpointIn &cp, unsigned int store_id,
         fatal("Memory range size has changed! Saw %lld, expected %lld\n",
               range_size, range.size());
 
-    // Parse page table.
-    std::vector<Page> pages;
-    while (true) {
-        Page page(pageSize);
-        int bytes = gzread(file_pages, page.data(), page.size());
-        if (bytes == 0 && gzeof(file_pages))
-            break;
-        if (bytes != page.size())
-            fatal("Failed to read page\n");
-        pages.emplace_back(std::move(page));
-    }
-    gzclose(file_pages);
-
     // Parse ids.
+    std::vector<PageId> id_vec;
     for (std::size_t i = 0; i != range.size(); i += pageSize) {
         PageId id;
         if (std::fread(&id, sizeof id, 1, file_ids) != 1)
             fatal("Failed to read page id\n");
+        id_vec.push_back(id);
+    }
+
+    // Load pages from set.
+    std::vector<PageId> id_vec_sorted = id_vec;
+    std::sort(id_vec_sorted.begin(), id_vec_sorted.end());
+    auto id_vec_sorted_new_end = std::unique(id_vec_sorted.begin(), id_vec_sorted.end());
+    id_vec_sorted.erase(id_vec_sorted_new_end, id_vec_sorted.end());
+
+    // Parse page table.
+    std::unordered_map<PageId, Page> pages;
+    for (PageId page_id : id_vec_sorted) {
+        Page page(pageSize);
+        const z_off_t off = page_id * pageSize;
+        const auto new_off = gzseek(file_pages, off, SEEK_SET);
+        fatal_if(new_off != off, "gzseek sought to the wrong location!\n");
+        const int bytes = gzread(file_pages, page.data(), pageSize);
+        fatal_if(bytes != pageSize, "gzread read the wrong number of bytes!\n");
+        pages.emplace(page_id, std::move(page));
+    }
+    gzclose(file_pages);
+
+    // Copy pages into memory.
+    for (std::size_t i = 0; i < id_vec.size(); ++i) {
+        const std::size_t off = i * pageSize;
+        const PageId id = id_vec[i];
         const Page &page = pages.at(id);
-        std::copy(page.begin(), page.end(), &pmem[i]);
+        std::copy(page.begin(), page.end(), &pmem[off]);
     }
 }   
 
