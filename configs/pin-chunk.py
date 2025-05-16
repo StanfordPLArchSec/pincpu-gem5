@@ -156,34 +156,19 @@ system.workload = SEWorkload.init_compatible(mp0_path)
 root = Root(full_system=False, system=system)
 m5.instantiate()
 m5.startup()
-exit_sysnos = [
-    60,  # exit
-    231,  # exit_group
-]
-for exit_sysno in exit_sysnos:
-    cpu.executePinCommand(f"sysbreak {exit_sysno}")
+# exit_sysnos = [
+#     60,  # exit
+#     231,  # exit_group
+# ]
+# for exit_sysno in exit_sysnos:
+#     cpu.executePinCommand(f"sysbreak {exit_sysno}")
 
 clean_exit_cause = "exiting with last active thread context"
 break_exit_cause = "pin-breakpoint"
 
 
-def run_until(cmd: str):
-    cpu.executePinCommand(cmd)
-    exit_cause = m5.simulate()
-    if exit_cause == clean_exit_cause:
-        return True
-    if exit_cause != break_exit_cause:
-        print(
-            f"pin-bbv: expected exit cause '{break_exit_cause}', got '{exit_cause}'",
-            file=sys.stderr,
-        )
-        exit(1)
-    return False
-
-
 class Exit(BaseException):
     pass
-
 
 def run_for_n(counter: str, n: int):
     # TODO: Should standardize command to 'count <name>'
