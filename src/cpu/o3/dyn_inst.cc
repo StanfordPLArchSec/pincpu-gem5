@@ -511,6 +511,9 @@ DynInst::isSpeculationPrimitive() const
       case SpeculationModel::None:
         return false;
 
+      case SpeculationModel::CondCtrl:
+        return isCondCtrl() && (!isExecuted() || mispredicted());
+
       case SpeculationModel::Ctrl:
         // TPE-TODO: Double-check this with STT/SPT?
         return (isCondCtrl() || isIndirectCtrl()) && (!isExecuted() || mispredicted());

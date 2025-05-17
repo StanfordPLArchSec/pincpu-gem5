@@ -172,8 +172,6 @@ def addNoISAOptions(parser):
 
     parser.add_argument("--memchecker", action="store_true")
 
-    parser.add_argument("--max-stack-size", type=str, default="64MB")
-
     # Cache Options
     parser.add_argument(
         "--external-memory-system",
@@ -694,7 +692,7 @@ def addCommonOptions(parser, default_isa: Optional[ISA] = None):
     # [TPE, STT, SPT] Options
     parser.add_argument(
         "--speculation-model",
-        choices=["None", "Ctrl", "CtrlSt", "Futuristic", "AtRet"],
+        choices=["None", "CondCtrl", "Ctrl", "CtrlSt", "Futuristic", "AtRet"],
         required=True,
         help="[TPE, STT, SPT] Speculation model",
     )

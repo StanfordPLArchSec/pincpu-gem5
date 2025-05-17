@@ -61,7 +61,7 @@ class CommitPolicy(ScopedEnum):
     vals = ["RoundRobin", "OldestReady"]
 
 class SpeculationModel(ScopedEnum):
-    vals = ["None", "Ctrl", "CtrlSt", "Futuristic", "AtRet"]
+    vals = ["None", "CondCtrl", "Ctrl", "CtrlSt", "Futuristic", "AtRet"]
 
 
 class ImplicitChannelMode(ScopedEnum):

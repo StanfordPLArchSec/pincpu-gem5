@@ -409,6 +409,9 @@ Process::fixupFault(Addr vaddr)
 void
 Process::serialize(CheckpointOut &cp) const
 {
+    paramOut(cp, "tgtCwd", tgtCwd);
+    paramOut(cp, "hostCwd", hostCwd);
+
     memState->serialize(cp);
     pTable->serialize(cp);
     fds->serialize(cp);
@@ -424,6 +427,9 @@ Process::serialize(CheckpointOut &cp) const
 void
 Process::unserialize(CheckpointIn &cp)
 {
+    paramIn(cp, "tgtCwd", tgtCwd);
+    paramIn(cp, "hostCwd", hostCwd);
+
     memState->unserialize(cp);
     pTable->unserialize(cp);
     fds->unserialize(cp, this);
