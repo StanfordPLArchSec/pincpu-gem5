@@ -82,7 +82,6 @@ parser.add_argument(
 )
 parser.add_argument(
     "--waypoints",
-    required = True,
     type = os.path.abspath,
     help = "Path to waypoints list",
 )
@@ -132,8 +131,9 @@ if args.elastic_trace_en:
 
 
 # Set pin params.
-cpu.pinToolArgs = f"-waypoints {args.waypoints} -waypointcount 1 -instcount 1"
-
+cpu.pinToolArgs = "-instcount 1"
+if args.waypoints:
+    cpu.pinToolArgs += f" -waypoints {args.waypoints} -waypointcount 1"
 process.pinInSE = True
 cpu.countInsts = True
 
@@ -187,7 +187,8 @@ for a, b in zip(simpoints[:-1], simpoints[1:]):
     assert a < b - 1
 
 def run_until_waypoint(waypoint):
-    cpu.executePinCommand(f"breakpoint waypoint {waypoint}")
+    break_type = "waypoint" if args.waypoints else "inst"
+    cpu.executePinCommand(f"breakpoint {break_type} {waypoint}")
     exit_cause = m5.simulate().getCause()
     if exit_cause != "pin-breakpoint":
         print(f"Unexpected exit cause: {exit_cause}", file=sys.stderr)
