@@ -528,8 +528,6 @@ def run(options, root, testsys, cpu_class):
             cpu_class(switched_out=True, cpu_id=(i)) for i in range(np)
         ]
 
-        CpuConfig.config_scheme(cpu_class, switch_cpus, options)
-
         for i in range(np):
             if options.fast_forward:
                 testsys.cpu[i].max_insts_any_thread = int(options.fast_forward)
