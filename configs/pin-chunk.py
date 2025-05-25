@@ -77,7 +77,10 @@ from m5.util import (
 from gem5.isas import ISA
 
 parser = make_parser()
+parser.add_argument("--interval", type=int, required=True)
+parser.add_argument("--warmup", type=int, required=True)
 args = parser.parse_args()
+assert args.interval > args.warmup
 process = make_process(args)
 
 # NHM-FIXME: Just read the kvm cpu directly?
@@ -184,8 +187,9 @@ def run_for_n(counter: str, n: int):
         )
         exit(1)
 
-interval = int(5e9)
-warmup = int(1e9)
+# TODO: Remove copy.
+interval = args.interval
+warmup = args.warmup
 cpt_count = 0
 
 try:
