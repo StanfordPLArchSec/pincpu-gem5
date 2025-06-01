@@ -124,7 +124,7 @@ if args.elastic_trace_en:
 # Set pin params.
 cpu = system.cpu[0]
 cpu.pinArgs = args.pin_args
-cpu.pinToolArgs = args.pin_tool_args
+cpu.pinToolArgs = f"-hfi {int(args.hfi)} {args.pin_tool_args}"
 
 # for cpu in system.cpu:
 #     cpu.usePerf = True
