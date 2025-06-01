@@ -162,12 +162,14 @@ Process::Process(const ProcessParams &params, EmulationPageTable *pTable,
     exitGroup = new bool();
     sigchld = new bool();
 
+#if 0
     /**
      * Set the base of dynamically linked executables to Linux's default
      * (when ASLR is disabled).
      */
     if (objFile->relocatable() && objFile->bias() == 0)
         objFile->updateBias(0x0000555555554000ULL);
+#endif
 
     image = objFile->buildImage();
     panic_if(image.minAddr() == 0, "Image's min addr is 0!\n");
