@@ -790,6 +790,28 @@ CPU::pinRun()
     }
 }
 
+// NOTE: vaddr is the faulting address. vma is the containing VMA
+// mapping. vbase is the base of the (sub)region of the VMA to be mapped,
+// and size gives the size.
+static void
+vmaRangeToMap(Addr vaddr, const VMA &vma, Addr &vbase, Addr &vend)
+{
+    // First, compute the chunk that we would map given an infinitely sized
+    // VMA.
+    constexpr Addr max_chunk_size = 16 * 1024 * 1024;
+    constexpr Addr max_chunk_mask = max_chunk_size - 1;
+    vbase = vaddr & ~max_chunk_mask;
+    vend = vbase + max_chunk_size;
+
+    // Now, fix up the bounds as needed to match the actual VMA.
+    vbase = std::max(vbase, vma.start());
+    if (vend == 0) {
+        vend = vma.end();
+    } else {
+        vend = std::min(vend, vma.end());
+    }
+}
+
 void
 CPU::handlePageFault(Addr vaddr)
 {
@@ -811,10 +833,13 @@ CPU::handlePageFault(Addr vaddr)
     };
     std::list<Entry> mappings;
     MemState& mem_state = *tc->getProcessPtr()->memState;
-    size_t size = 0x1000;
+    std::size_t size = 0x1000;
     if (VMA *vma = mem_state.getVMA(vaddr)) {
-        vaddr = vma->start();
-        size = vma->size();
+        Addr vbase;
+        Addr vend;
+        vmaRangeToMap(vaddr, *vma, vbase, vend);
+        vaddr = vbase;
+        size = vend - vbase;
         DPRINTF(Pin, "VMA: %#x %#x %s\n", vma->start(), vma->end(), vma->getName());
     }
     DPRINTF(Pin, "Preparing to map starting at vaddr=%#x size=%#x\n",
