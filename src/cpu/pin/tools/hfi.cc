@@ -12,6 +12,8 @@
 
 namespace {
 
+KNOB<bool> enable(KNOB_MODE_WRITEONCE, "pintool", "hfi", "0", "enable HFI support");
+
 constexpr uint8_t HF1_PREFIX = 0x65;
 constexpr uint8_t DUMMY_PREFIX = 0x36; // SS.
 
@@ -31,6 +33,15 @@ enum class HfiOp : uint8_t
 std::unordered_map<ADDRINT, HfiOp> hfi_ops;
 std::unordered_set<ADDRINT> hf1_ops;
 std::unordered_map<ADDRINT, uint8_t> code_subst;
+std::vector<REG> hfi_claimed_tool_regs;
+
+static REG
+getToolReg(unsigned i)
+{
+    while (i >= hfi_claimed_tool_regs.size())
+        hfi_claimed_tool_regs.push_back(PIN_ClaimToolRegister());
+    return hfi_claimed_tool_regs.at(i);
+}
 
 void
 SetSandboxMetadata(ADDRINT base_)
@@ -109,7 +120,7 @@ InstrumentINS(INS ins, void *)
     if (hf1_ops.count(INS_Address(ins))) {
         // Rewrite the memory operand.
         for (UINT32 mop = 0; mop < INS_MemoryOperandCount(ins); ++mop) {
-            const REG reg = (REG) (REG_INST_G0 + mop);
+            const REG reg = (REG) getToolReg(mop);
             INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) DoHFIStructuredMove,
                            IARG_MEMORYOP_EA, mop,
                            IARG_RETURN_REGS, reg,
@@ -139,7 +150,7 @@ InstrumentINS(INS ins, void *)
 
       case HfiOp::ExitSandbox:
         {
-            const REG handler = REG_INST_G0;
+            const REG handler = getToolReg(0);
             INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) ExitSandbox,
                            IARG_INST_PTR,
                            IARG_PTR, INS_Address(ins) + INS_Size(ins),
@@ -242,7 +253,7 @@ struct HFIPlugin final : Plugin
 
     int priority() const override { return -10; }
 
-    bool enabled() const override { return true; }
+    bool enabled() const override { return enable.Value(); }
 
     bool
     reg() override
