@@ -113,9 +113,9 @@ class VMA
     /**
      * Defer AddrRange related calls to the AddrRange.
      */
-    Addr size() { return _addrRange.size(); }
-    Addr start() { return _addrRange.start(); }
-    Addr end() { return _addrRange.end(); }
+    Addr size() const { return _addrRange.size(); }
+    Addr start() const { return _addrRange.start(); }
+    Addr end() const { return _addrRange.end(); }
 
     bool
     mergesWith(const AddrRange& r) const
