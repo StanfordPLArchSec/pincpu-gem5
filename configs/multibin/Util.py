@@ -13,6 +13,7 @@ def make_parser() -> ArgumentParser:
     parser = ArgumentParser()
     parser.add_argument("--chdir", default=".", help="Set working directory of simulated process")
     parser.add_argument("--max-stack-size", type=str, default="64MB")
+    parser.add_argument("--hfi", action="store_true")
     Options.addCommonOptions(parser)
     Options.addSEOptions(parser)
     parser.add_argument("cmd", help="Executable to simulate")
@@ -37,7 +38,7 @@ def make_parser() -> ArgumentParser:
         help="Path to Pin guest kernel",
     )
 
-    parser.add_argument("--stdin", default="/dev/null")
+    parser.add_argument("--stdin", default="/dev/stdin")
     parser.add_argument("--stdout", default="stdout.txt")
     parser.add_argument("--stderr", default="stderr.txt")
 
