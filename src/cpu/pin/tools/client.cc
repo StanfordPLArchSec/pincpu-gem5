@@ -11,6 +11,7 @@
 #pragma GCC diagnostic pop
 #include <unordered_set>
 #include <cstdint>
+#include <vector>
 
 #include "pin.H"
 #include "ops.hh"
@@ -37,6 +38,7 @@ static ADDRINT virtual_vsyscall_base = 0;
 static ADDRINT physical_vsyscall_base = 0;
 static uint64_t inst_count = 0;
 static std::unordered_map<ADDRINT, std::string> symbol_table;
+static std::vector<REG> claimed_regs;
 
 static uint64_t pinops_count = 0;
 
@@ -53,6 +55,15 @@ log()
 
 static ADDRINT getpage(ADDRINT addr) {
     return addr & ~(ADDRINT) 0xFFF;
+}
+
+static REG
+getToolReg(unsigned i)
+{
+    // Claim extra tool registers if necessary.
+    while (i >= claimed_regs.size())
+        claimed_regs.push_back(PIN_ClaimToolRegister());
+    return claimed_regs.at(i);
 }
 
 void
@@ -285,6 +296,14 @@ HandleFSGSAccess(ADDRINT effaddr)
 #endif
     return effaddr;
 }
+
+#if 0
+static ADDRINT
+HandleWRFSGSBASE(ADDRINT value)
+{
+    return value;
+}
+#endif
 
 static std::unordered_map<ADDRINT, PinOp> pinops_blacklist;
 
@@ -772,11 +791,26 @@ Instruction(INS ins, void *)
         // TODO: Shuold probably be predicated.
         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) HandleFSGSAccess,
                        IARG_MEMORYOP_EA, i,
-                       IARG_RETURN_REGS, REG_INST_G0 + i,
+                       IARG_RETURN_REGS, getToolReg(i),
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
-        INS_RewriteMemoryOperand(ins, i, (REG) (REG_INST_G0 + i));
+        INS_RewriteMemoryOperand(ins, i, (REG) getToolReg(i));
     }
+
+#if 0
+    // wrfsbase, wrgsbase appear to need special handling.
+    if (INS_Opcode(ins) == XED_ICLASS_WRFSBASE ||
+        INS_Opcode(ins) == XED_ICLASS_WRGSBASE) {
+        const REG seg_base = INS_Opcode(ins) == XED_ICLASS_WRFSBASE ? REG_SEG_FS_BASE : REG_SEG_GS_BASE;
+        const REG src = INS_RegR(ins, 0);
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) HandleWRFSGSBASE,
+                       IARG_REG_VALUE, src,
+                       IARG_RETURN_REGS, seg_base,
+                       IARG_END);
+        dbgs() << "[*] instrumenting wrfsbase/wrgsbase: " << REG_StringShort(seg_base) << " " << REG_StringShort(src) << " at "
+               << std::hex << "0x" << INS_Address(ins) << "\n";
+    }
+#endif                  
 }
 
 static ADDRINT
@@ -813,10 +847,10 @@ Instruction_Vsyscall(INS ins, void *)
                                  IARG_MEMORYOP_SIZE, i,
                                  IARG_ADDRINT, INS_Address(ins) + INS_Size(ins),
                                  IARG_CONST_CONTEXT,
-                                 IARG_RETURN_REGS, REG_INST_G0 + i,
+                                 IARG_RETURN_REGS, getToolReg(i),
                                  IARG_CALL_ORDER, CALL_ORDER_LAST,
                                  IARG_END);
-        INS_RewriteMemoryOperand(ins, i, (REG) (REG_INST_G0 + i));
+        INS_RewriteMemoryOperand(ins, i, getToolReg(i));
     }
 }
 
