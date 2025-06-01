@@ -26,6 +26,7 @@ class BasePinCPU(BaseCPU):
     pinTool = Param.String(buildEnv["PIN_CLIENT"], "Path to host PinTool")
     pinToolArgs = Param.String("", "Arguments to pass to PinTool")
     pinArgs = Param.String("", "Arguments to pass to Pin")
+    hfi = Param.Bool(False, "Enable HFI")
 
     # FIXME: Remove.
     countInsts = Param.Bool(False, "Enable instruction counting (moderate performance penalty)")
