@@ -210,7 +210,13 @@ Decoder::doPrefixState(uint8_t nextByte)
         break;
       case HfiStructured1:
         DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);
-        emi.hfi_structured1 = 1;
+        if (getenv("HFI")) {
+            // Handle it as HFI instruction.
+            emi.hfi_structured1 = 1;
+        } else {
+            // Handle it as GSOverride.
+            emi.legacy.seg = GSOverride;
+        }
         break;
       case HfiStructured2:
         DPRINTF(Decoder, "Found Rex prefix %#x.\n", nextByte);

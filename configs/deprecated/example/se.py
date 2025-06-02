@@ -139,6 +139,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--chdir", default=os.getcwd(), type=os.path.abspath, help="Set working directory of simulated process")
 parser.add_argument("--max-stack-size", default="8MiB", help="Max stack size")
 parser.add_argument("--stdin", default="/dev/stdin")
+parser.add_argument("--hfi", action="store_true")
 parser.add_argument("command", nargs="+")
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
@@ -150,6 +151,9 @@ args = parser.parse_args()
 assert args.cmd == "" and args.options == ""
 args.cmd = args.command[0]
 args.options = " ".join(args.command[1:])
+
+if args.hfi:
+    os.environ["HFI"] = str(1);
 
 multiprocesses = []
 numThreads = 1
