@@ -83,7 +83,7 @@ def get_processes(args):
         process.executable = wrkld
         process.cwd = args.chdir
         process.maxStackSize = args.max_stack_size
-        process.gid = os.getgid()
+        # process.gid = os.getgid()
         process.input = "/dev/stdin"
         process.output = "/dev/stdout"
         process.errout = "/dev/stderr"
