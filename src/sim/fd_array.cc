@@ -385,8 +385,7 @@ FDArray::unserialize(CheckpointIn &cp, Process* process_ptr) {
             "FDArray sizes do not match at unserialize!");
 
     for (int tgt_fd = 0; tgt_fd < _fdArray.size(); tgt_fd++) {
-        if (tgt_fd == STDIN_FILENO || tgt_fd == STDOUT_FILENO ||
-                tgt_fd == STDERR_FILENO)
+        if (tgt_fd == STDOUT_FILENO || tgt_fd == STDERR_FILENO)
             continue;
         ScopedCheckpointSection sec(cp, csprintf("Entry%d", tgt_fd));
         FDEntry::FDClass fd_class;
