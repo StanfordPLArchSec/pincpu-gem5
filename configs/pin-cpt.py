@@ -80,9 +80,13 @@ parser.add_argument(
     type = os.path.abspath,
     help="Path to SimPoint JSON file under cpt/*",
 )
+def argument_waypoints(s):
+    if len(s) == 0:
+        return None
+    return os.path.abspath(s)
 parser.add_argument(
     "--waypoints",
-    type = os.path.abspath,
+    type = argument_waypoints,
     help = "Path to waypoints list",
 )
 args = parser.parse_args()
@@ -132,7 +136,7 @@ if args.elastic_trace_en:
 
 # Set pin params.
 cpu.pinToolArgs = "-instcount 1"
-if args.waypoints:
+if args.waypoints and len(args.waypoints) > 0:
     cpu.pinToolArgs += f" -waypoints {args.waypoints} -waypointcount 1"
 process.pinInSE = True
 cpu.countInsts = True
@@ -184,46 +188,112 @@ for a, b in zip(simpoints[:-1], simpoints[1:]):
     a = a.interval
     b = b.interval
     assert a < b
-    assert a < b - 1
+
+waypoint_type = "waypoint" if args.waypoints else "inst"
 
 def run_until_waypoint(waypoint):
-    break_type = "waypoint" if args.waypoints else "inst"
-    cpu.executePinCommand(f"breakpoint {break_type} {waypoint}")
+    cpu.executePinCommand(f"breakpoint {waypoint_type} {waypoint}")
     exit_cause = m5.simulate().getCause()
     if exit_cause != "pin-breakpoint":
         print(f"Unexpected exit cause: {exit_cause}", file=sys.stderr)
         exit(1)
     return int(cpu.executePinCommand(f"instcount"))
 
-for simpoint in simpoints:
-    # Assume instruction counting is already set up.
-    # Just need to set up instruction count breakpoint.
-    wp1, wp2, wp3 = simpoint.waypoints
+# Entries: (inst, type, simpoint)
+inst_actions = []
+simpoint_insts = [(None, None, None)] * len(simpoints)
+for i, simpoint in enumerate(simpoints):
+    for waypoint, key in zip(simpoint.waypoints, ["warmup", "interval", "end"]):
+        inst_actions.append((waypoint, key, i))
+inst_actions.sort(key = lambda x: x[0])
 
-    # Run until warmup begin.
-    inst1 = run_until_waypoint(wp1)
-
-    # Checkpoint.
+def symlink_checkpoint(inst_warmup, inst_interval, inst_end, simpoint):
+    assert inst_warmup != None and inst_interval != None and inst_end != None
     short_name = f"cpt.{simpoint.name}"
-    path = os.path.join(m5.options.outdir, short_name)
-    m5.checkpoint(path)
-    m5.stats.dump()
-    print(
-        "pin-cpt: dumped checkpoint {}".format(simpoint.name),
-        file=sys.stderr,
-    )
-
-    # Run until warmup end / interval begin.
-    inst2 = run_until_waypoint(wp2)
-
-    # Run until interval end.
-    inst3 = run_until_waypoint(wp3)
-
     # Symlink in long gem5 name.
-    interval = inst3 - inst2
-    warmup = inst2 - inst1
-    long_name = f"cpt.simpoint_{int(simpoint.name):02}_inst_{inst1}_weight_{simpoint.weight}_interval_{interval}_warmup_{warmup}"
+    interval = inst_end - inst_interval
+    warmup = inst_interval - inst_warmup
+    long_name = f"cpt.simpoint_{int(simpoint.name):02}_inst_{inst_warmup}_weight_{simpoint.weight}_interval_{interval}_warmup_{warmup}"
     os.symlink(short_name, os.path.join(m5.options.outdir, long_name))
+    
+
+if True:
+    done = 0
+    for wp, kind, i in inst_actions:
+        print(wp, kind, i, file=sys.stderr)
+        simpoint = simpoints[i]
+        short_name = f"cpt.{simpoint.name}"
+        inst_warmup, inst_interval, inst_end = simpoint_insts[i]
+
+        # Run until the waypoint.
+        if kind == "end" and i == len(simpoints) - 1 and waypoint_type == "inst":
+            # Fudge the endpoint a bit.
+            wp -= 100
+        inst = run_until_waypoint(wp)
+
+        print("here", file=sys.stderr)
+
+        if kind == "warmup":
+            inst_warmup = inst
+            path = os.path.join(m5.options.outdir, short_name)
+            m5.checkpoint(path)
+            m5.stats.dump()
+            print(
+                "pin-cpt: dumped checkpoint {}".format(simpoint.name),
+                file=sys.stderr,
+            )
+        elif kind == "interval":
+            inst_interval = inst
+        elif kind == "end":
+            inst_end = inst
+            symlink_checkpoint(inst_warmup, inst_interval, inst_end, simpoint)
+            done += 1
+        else:
+            assert False, "bad type!"
+
+        simpoint_insts[i] = (inst_warmup, inst_interval, inst_end)
+
+    if done == len(simpoints):
+        pass
+    elif done == len(simpoints) - 1:
+        # We didn't catch the last one...
+        # TODO: Refactor with above code to make long gem5 checkpoint symlink.
+        symlink_checkpoint(*simpoint_insts[-1], simpoints[-1])
+        
+        
+        
+
+# TODO: Delete.
+if False:
+    for simpoint in simpoints:
+        # Assume instruction counting is already set up.
+        # Just need to set up instruction count breakpoint.
+        wp1, wp2, wp3 = simpoint.waypoints
+
+        # Run until warmup begin.
+        inst1 = run_until_waypoint(wp1)
+
+        # Checkpoint.
+        short_name = f"cpt.{simpoint.name}"
+        path = os.path.join(m5.options.outdir, short_name)
+        m5.checkpoint(path)
+        m5.stats.dump()
+        print(
+            "pin-cpt: dumped checkpoint {}".format(simpoint.name),
+            file=sys.stderr,
+        )
+
+        # Run until warmup end / interval begin.
+        inst2 = run_until_waypoint(wp2)
+
+        # Run until interval end.
+        inst3 = run_until_waypoint(wp3)
+
+        # Symlink in long gem5 name.
+        interval = inst3 - inst2
+        warmup = inst2 - inst1
+        long_name = f"cpt.simpoint_{int(simpoint.name):02}_inst_{inst1}_weight_{simpoint.weight}_interval_{interval}_warmup_{warmup}"
+        os.symlink(short_name, os.path.join(m5.options.outdir, long_name))
 
 # Run to completion.
 exit_cause = m5.simulate().getCause()

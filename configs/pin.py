@@ -76,6 +76,7 @@ from multibin.Util import (
 parser = make_parser()
 parser.add_argument("--pin-args", default="")
 parser.add_argument("--pin-tool-args", default="")
+parser.add_argument("--instcount", action="store_true")
 args = parser.parse_args()
 process = make_process(args)
 
@@ -125,6 +126,7 @@ if args.elastic_trace_en:
 cpu = system.cpu[0]
 cpu.pinArgs = args.pin_args
 cpu.pinToolArgs = args.pin_tool_args
+cpu.countInsts = args.instcount
 
 # for cpu in system.cpu:
 #     cpu.usePerf = True
