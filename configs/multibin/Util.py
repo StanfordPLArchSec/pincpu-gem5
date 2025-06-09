@@ -48,7 +48,7 @@ def make_process(args) -> Process:
     process = Process(pid=100)
     process.executable = args.cmd
     process.cwd = os.path.abspath(args.chdir)
-    process.gid = os.getgid()
+    # process.gid = os.getgid()
     process.maxStackSize = args.max_stack_size
 
     # Clear out the environment, unless it's set.

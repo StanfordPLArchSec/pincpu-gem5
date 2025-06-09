@@ -83,8 +83,6 @@ args = parser.parse_args()
 assert args.interval > args.warmup
 process = make_process(args)
 
-print(os.listdir(m5.options.outdir), file=sys.stderr)
-
 # NHM-FIXME: Just read the kvm cpu directly?
 # To get mem mode: CPUClass.memory_mode()
 CPUClass = ObjectList.cpu_list.get("X86PinCPU")
@@ -195,16 +193,11 @@ interval = args.interval
 warmup = args.warmup
 cpt_count = 0
 
-print(os.listdir(m5.options.outdir), file=sys.stderr)
-
-
 try:
     # Run for one instruction just to avoid weirdness from checkpointing before
     # executing anything. Not sure if this would be a problem or not, but doing
     # this anyway, since it doesn't hurt.
     run_for_n("inst", 10000)
-
-    print(os.listdir(m5.options.outdir), file=sys.stderr)
 
     def take_checkpoint(warmup, interval):
         global cpt_count

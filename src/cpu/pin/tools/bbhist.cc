@@ -7,6 +7,7 @@
 
 #include "plugin.hh"
 #include "client.hh"
+#include "util.hh"
 
 namespace {
 
@@ -29,13 +30,7 @@ struct BlockData
     BlockData(BBL bbl)
         : hits(0)
     {
-        bool first = true;
-        for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-            char buf[256];
-            std::sprintf(buf, "%s%lx", first ? "" : ",", INS_Address(ins));
-            name += buf;
-            first = false;
-        }
+        name = getBlockName(bbl);
     }
 };
 

@@ -45,6 +45,8 @@ import json
 import os
 import sys
 import types
+import subprocess
+import fcntl
 
 from common import (
     CacheConfig,
@@ -75,8 +77,8 @@ from multibin.Util import (
 
 parser = make_parser()
 parser.add_argument("--pin-args", default="")
-parser.add_argument("--pin-tool-args", default="")
 parser.add_argument("--instcount", action="store_true")
+parser.add_argument("--bbtrace", required=True, type=os.path.abspath)
 args = parser.parse_args()
 process = make_process(args)
 
@@ -121,17 +123,24 @@ system.cpu_clk_domain = SrcClockDomain(
 if args.elastic_trace_en:
     CpuConfig.config_etrace(CPUClass, system.cpu, args)
 
+# Create the bbtrace gzip file.
+bbtrace_gzip = subprocess.Popen(f"gzip > {args.bbtrace}", shell=True,
+                                   stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
+bbtrace_fd = bbtrace_gzip.stdin.fileno()
+bbtrace_fd_flags = fcntl.fcntl(bbtrace_fd, fcntl.F_GETFD)
+assert bbtrace_fd_flags & fcntl.FD_CLOEXEC
+fcntl.fcntl(bbtrace_fd, fcntl.F_SETFD, bbtrace_fd_flags & ~fcntl.FD_CLOEXEC)
 
 # Set pin params.
 cpu = system.cpu[0]
 cpu.pinArgs = args.pin_args
-cpu.pinToolArgs = f"-hfi {int(args.hfi)} {args.pin_tool_args}"
-cpu.pinToolArgs = args.pin_tool_args
+cpu.pinToolArgs = f"-bbtrace /dev/fd/{bbtrace_fd}"
 cpu.countInsts = args.instcount
 
 # for cpu in system.cpu:
 #     cpu.usePerf = True
 process.pinInSE = True
+
 
 # All cpus belong to a common cpu_clk_domain, therefore running at a common
 # frequency.
@@ -159,4 +168,10 @@ root = Root(full_system=False, system=system)
 m5.instantiate()
 exit_event = m5.simulate()
 print(f"[*] workload exited {exit_event.getCode()}", file=sys.stderr)
+bbtrace_gzip.stdin.close()
+bbtrace_gzip_result = bbtrace_gzip.wait()
+if bbtrace_gzip_result != 0:
+    print("gzip error: exited with non-zero exit code:", bbtrace_gzip_result,
+          file=sys.stderr)
+    exit(2)
 exit(exit_event.getCode())

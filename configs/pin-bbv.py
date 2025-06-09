@@ -109,7 +109,6 @@ parser.add_argument(
 )
 parser.add_argument(
     "--waypoints",
-    required=True,
     type=os.path.abspath,
     help="Path to waypoints list",
 )
@@ -160,7 +159,9 @@ if args.elastic_trace_en:
 
 # Set pin params.
 cpu = system.cpu[0]
-cpu.pinToolArgs = f"-bbhist 1 -waypoints {args.waypoints} -waypointcount 1"
+cpu.pinToolArgs = "-bbhist 1"
+if args.waypoints:
+    cpu.pinToolArgs += f" -waypoints {args.waypoints} -waypointcount 1"
 cpu.countInsts = True
 
 # for cpu in system.cpu:
@@ -238,9 +239,13 @@ def run_for_n(counter: str, n: int):
 
 def run_for_n_insts_next_waypoint(n: int):
     run_for_n("inst", n)
-    run_for_n("waypoint", 1)
+    if args.waypoints:
+        run_for_n("waypoint", 1)
     icount = int(cpu.executePinCommand("instcount"))
-    wcount = int(cpu.executePinCommand("waypointcount"))
+    if args.waypoints:
+        wcount = int(cpu.executePinCommand("waypointcount"))
+    else:
+        wcount = icount
     return wcount, icount
 
 

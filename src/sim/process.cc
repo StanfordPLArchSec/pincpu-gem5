@@ -162,15 +162,6 @@ Process::Process(const ProcessParams &params, EmulationPageTable *pTable,
     exitGroup = new bool();
     sigchld = new bool();
 
-#if 0
-    /**
-     * Set the base of dynamically linked executables to Linux's default
-     * (when ASLR is disabled).
-     */
-    if (objFile->relocatable() && objFile->bias() == 0)
-        objFile->updateBias(0x0000555555554000ULL);
-#endif
-
     image = objFile->buildImage();
     panic_if(image.minAddr() == 0, "Image's min addr is 0!\n");
 
@@ -417,6 +408,9 @@ Process::fixupFault(Addr vaddr)
 void
 Process::serialize(CheckpointOut &cp) const
 {
+    paramOut(cp, "tgtCwd", tgtCwd);
+    paramOut(cp, "hostCwd", hostCwd);
+
     memState->serialize(cp);
     pTable->serialize(cp);
     fds->serialize(cp);
@@ -432,6 +426,9 @@ Process::serialize(CheckpointOut &cp) const
 void
 Process::unserialize(CheckpointIn &cp)
 {
+    paramIn(cp, "tgtCwd", tgtCwd);
+    paramIn(cp, "hostCwd", hostCwd);
+
     memState->unserialize(cp);
     pTable->unserialize(cp);
     fds->unserialize(cp, this);
