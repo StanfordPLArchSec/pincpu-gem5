@@ -138,9 +138,8 @@ class FileFDEntry: public HBFDEntry
           _fileName(file_name), _fileOffset(file_offset)
     {
         _class = FDClass::fd_file;
-	char *path = realpath(_fileName.c_str(), nullptr);
-	panic_if(!path, "realpath failed!\n");
-        _fileName = path;
+	if (char *path = realpath(_fileName.c_str(), nullptr))
+	    _fileName = path;
 	std::free(path);
     }
 
