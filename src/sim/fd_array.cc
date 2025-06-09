@@ -430,6 +430,9 @@ FDArray::unserialize(CheckpointIn &cp, Process* process_ptr) {
             path = this_ffd->getFileName();
         }
 
+	if (path.find("/dev/pts/") != path.npos)
+	    path = "/dev/stdin";
+
         int flags = this_ffd->getFlags();
 
         // Re-open the file and assign a new sim_fd
