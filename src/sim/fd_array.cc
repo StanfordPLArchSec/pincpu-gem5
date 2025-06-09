@@ -415,7 +415,6 @@ FDArray::unserialize(CheckpointIn &cp, Process* process_ptr) {
         auto this_ffd = std::dynamic_pointer_cast<FileFDEntry>(fdep);
         if (!this_ffd)
             continue;
-        setFDEntry(tgt_fd, fdep);
 
         mode_t mode = this_ffd->getFileMode();
 
@@ -430,6 +429,9 @@ FDArray::unserialize(CheckpointIn &cp, Process* process_ptr) {
             path = this_ffd->getFileName();
         }
 
+	if (path.find("/dev/pts/") != path.npos)
+	    continue;
+
         int flags = this_ffd->getFlags();
 
         // Re-open the file and assign a new sim_fd
@@ -441,6 +443,8 @@ FDArray::unserialize(CheckpointIn &cp, Process* process_ptr) {
         // Restore the file offset to the proper value
         uint64_t file_offset = this_ffd->getFileOffset();
         lseek(sim_fd, file_offset, SEEK_SET);
+
+        setFDEntry(tgt_fd, fdep);	
     }
 }
 
