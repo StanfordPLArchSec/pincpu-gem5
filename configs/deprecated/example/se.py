@@ -154,6 +154,9 @@ args.options = " ".join(args.command[1:])
 
 if args.hfi:
     os.environ["HFI"] = str(1);
+    print("[*] HFI enabled")
+else:
+    assert "HFI" not in os.environ
 
 multiprocesses = []
 numThreads = 1
