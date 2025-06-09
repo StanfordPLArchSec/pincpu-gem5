@@ -39,6 +39,7 @@
 #include "cpu/thread_context.hh"
 #include "debug/MatRegs.hh"
 #include "debug/X86.hh"
+#include "debug/HFI.hh"
 #include "params/X86ISA.hh"
 #include "sim/serialize.hh"
 
@@ -532,6 +533,9 @@ ISA::unserialize(CheckpointIn &cp)
                      regVal[misc_reg::CsAttr],
                      regVal[misc_reg::SsAttr],
                      regVal[misc_reg::Rflags]);
+    DPRINTF(HFI, "HFI: base0=%#x\n",
+	    regVal[misc_reg::HFI_LINEAR_RANGE_1_BASE_ADDRESS_BASE_MASK]);
+    DPRINTF(HFI, "HFI: in_sandbox=%#x\n", regVal[misc_reg::HFI_INSIDE_SANDBOX]);
 }
 
 void
