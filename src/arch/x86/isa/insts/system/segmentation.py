@@ -340,4 +340,9 @@ def macroop SWAPGS
     wrbase gs, t1, dataSize=8
     wrval kernel_gs_base, t2, dataSize=8
 };
+
+def macroop WRGSBASE_R
+{
+    panic "WRGSBASE microcode not implemented";
+};
 """
