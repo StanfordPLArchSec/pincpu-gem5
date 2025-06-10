@@ -630,8 +630,8 @@ CPU::syncStateToPin(bool full)
     rf.rflags = getRFlags(tc);
     rf.fs = tc->readMiscRegNoEffect(misc_reg::Fs);
     rf.gs = tc->readMiscRegNoEffect(misc_reg::Gs);
-    rf.fs_base = tc->readMiscRegNoEffect(misc_reg::FsBase);
-    rf.gs_base = tc->readMiscRegNoEffect(misc_reg::GsBase);
+    rf.fs_base = tc->readMiscRegNoEffect(misc_reg::FsEffBase);
+    rf.gs_base = tc->readMiscRegNoEffect(misc_reg::GsEffBase);
 
     // HFI registers.
 #define X(rf_name, misc_name) rf.hfi.rf_name = tc->readMiscRegNoEffect(misc_reg::HFI_##misc_name);
@@ -736,8 +736,8 @@ CPU::syncStateFromPin(bool full)
     setRFlags(tc, rf.rflags);
     tc->setMiscRegNoEffect(misc_reg::Fs, rf.fs);
     tc->setMiscRegNoEffect(misc_reg::Gs, rf.gs);
-    tc->setMiscRegNoEffect(misc_reg::FsBase, rf.fs_base);
-    tc->setMiscRegNoEffect(misc_reg::GsBase, rf.gs_base);
+    tc->setMiscRegNoEffect(misc_reg::FsEffBase, rf.fs_base);
+    tc->setMiscRegNoEffect(misc_reg::GsEffBase, rf.gs_base);
 
     // HFI registers.
 #define X(rf_name, misc_name) tc->setMiscRegNoEffect(misc_reg::HFI_##misc_name, rf.hfi.rf_name);
