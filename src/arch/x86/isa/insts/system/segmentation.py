@@ -343,6 +343,7 @@ def macroop SWAPGS
 
 def macroop WRGSBASE_R
 {
-    panic "WRGSBASE microcode not implemented";
+    wrbase gs, reg
+    wrval gs_eff_base, reg
 };
 """
