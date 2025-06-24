@@ -51,6 +51,7 @@ class Process(SimObject):
                             table in an architecture-specific format",
     )
     kvmInSE = Param.Bool("false", "initialize the process for KvmCPU in SE")
+    qemuInSE = Param.Bool(False, "initialize the process for QemuCPU in SE")
     maxStackSize = Param.MemorySize("64MiB", "maximum size of the stack")
     zeroPages = Param.Bool(
         True,

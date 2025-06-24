@@ -760,3 +760,9 @@ void plugin_scoreboard_free(struct qemu_plugin_scoreboard *score)
     g_array_free(score->data, TRUE);
     g_free(score);
 }
+
+void plugin_request_exit(QEMUPluginCBState *s)
+{
+    CPUState *cpu = s->cpu;
+    qatomic_set(&cpu->exit_request, 1);
+}

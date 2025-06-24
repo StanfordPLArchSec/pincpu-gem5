@@ -1,0 +1,7 @@
+# -*- mode:python -*-
+
+Import("*")
+
+SimObject("BaseQemuCPU.py", sim_objects=["BaseQemuCPU"], tags="qemu")
+Source("cpu.cc", tags="qemu")
+DebugFlag("Qemu", tags="qemu")

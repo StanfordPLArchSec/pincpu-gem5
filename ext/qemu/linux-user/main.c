@@ -26,6 +26,8 @@
 #include <sys/resource.h>
 #include <sys/shm.h>
 #include <linux/binfmts.h>
+#include <err.h>
+#include <stdlib.h>
 
 #include "qapi/error.h"
 #include "qemu.h"
@@ -682,11 +684,17 @@ static int parse_args(int argc, char **argv)
         }
     }
 
+#if 0
     if (optind >= argc) {
         (void) fprintf(stderr, "qemu: no user program specified\n");
         exit(EXIT_FAILURE);
     }
+#else
+    if (optind != argc)
+        errx(EXIT_FAILURE, "qemucpu doesn't take any arguments");
+#endif
 
+    // [QEMUCPU] we won't want exec path.
     exec_path = argv[optind];
 
     return optind;
@@ -1045,4 +1053,39 @@ int main(int argc, char **argv, char **envp)
     cpu_loop(env);
     /* never exits */
     return 0;
+}
+
+static const char *qemucpu_getenv(const char *key) {
+    const char *value;
+    if ((value = getenv(key)) == NULL)
+        errx(EXIT_FAILURE, "qemucpu: missing environment variable: %s", key);
+    return value;
+}
+
+static FILE *qemucpu_open_pipe(const char *varname, const char *mode) {
+    const char *path = qemucpu_getenv(varname);
+    FILE *f;
+    if ((f = fopen(path, mode)) == NULL)
+        err(EXIT_FAILURE, "qemucpu: fopen: %s", path);
+    return f;
+}
+
+static FILE *qemucpu_open_fd(const char *path) {
+    int fd;
+    if ((fd = open(path, O_RDWR)) < 0)
+        err(EXIT_FAILURE, "open: %s", path);
+    return fd;
+}
+
+FILE *qemucpu_in_f;
+FILE *qemucpu_out_f;
+int qemucpu_mem_fd;
+
+static void __attribute__((constructor)) qemucpu_start(void)
+{
+    qemucpu_in_f = qemucpu_open_pipe("QEMUCPU_IN", "r");
+    qemucpu_out_f = qemucpu_open_pipe("QEMUCPU_OUT", "w");
+    qemucpu_mem_fd = qemucpu_open_fd(qemucpu_getenv("QEMUCPU_MEM"));
+    const int qemucpu_reg_fd = qemucpu_open_fd(qemucpu_getenv("QEMUCPU_REG"));
+    qemucpu_reg_map = 
 }
