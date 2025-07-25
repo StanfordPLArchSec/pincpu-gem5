@@ -552,6 +552,7 @@ def main():
             return shlex.quote(arg)
 
         print("command line:", " ".join(map(quote, sys.argv)))
+        print("cwd:", os.getcwd())
         print()
 
     # check to make sure we can find the listed script

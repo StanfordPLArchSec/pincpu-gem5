@@ -280,7 +280,7 @@ CPU::CPU(const BaseO3CPUParams &params)
             thread[tid] = new ThreadState(this, 0, NULL);
         } else {
             if (tid < params.workload.size()) {
-                DPRINTF(O3CPU, "Workload[%i] process is %#x", tid,
+                DPRINTF(O3CPU, "Workload[%i] process is %#x\n", tid,
                         thread[tid]);
                 thread[tid] = new ThreadState(this, tid, params.workload[tid]);
             } else {

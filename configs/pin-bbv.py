@@ -159,7 +159,7 @@ if args.elastic_trace_en:
 
 # Set pin params.
 cpu = system.cpu[0]
-cpu.pinToolArgs = "-bbhist 1"
+cpu.pinToolArgs = f"-hfi {int(args.hfi)} -bbhist 1"
 if args.waypoints:
     cpu.pinToolArgs += f" -waypoints {args.waypoints} -waypointcount 1"
 cpu.countInsts = True

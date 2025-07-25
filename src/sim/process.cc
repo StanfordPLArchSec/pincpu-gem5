@@ -163,7 +163,6 @@ Process::Process(const ProcessParams &params, EmulationPageTable *pTable,
     sigchld = new bool();
 
     image = objFile->buildImage();
-    panic_if(image.minAddr() == 0, "Image's min addr is 0!\n");
 
     if (loader::debugSymbolTable.empty())
         loader::debugSymbolTable = objFile->symtab();

@@ -31,7 +31,7 @@
 
 #include <cassert>
 #include <cstring>
-#include <vector>
+#include <deque>
 
 namespace gem5
 {
@@ -45,8 +45,7 @@ class TimeBuffer
     unsigned size;
     int _id;
 
-    char *data;
-    std::vector<char *> index;
+    std::deque<T> data;
     unsigned base;
 
     void valid(int idx) const
@@ -139,17 +138,9 @@ class TimeBuffer
   public:
     TimeBuffer(int p, int f)
         : past(p), future(f), size(past + future + 1),
-          data(new char[size * sizeof(T)]), index(size), base(0)
+          data(size), base(0)
     {
         assert(past >= 0 && future >= 0);
-        char *ptr = data;
-        for (unsigned i = 0; i < size; i++) {
-            index[i] = ptr;
-            std::memset(ptr, 0, sizeof(T));
-            new (ptr) T;
-            ptr += sizeof(T);
-        }
-
         _id = -1;
     }
 
@@ -160,9 +151,6 @@ class TimeBuffer
 
     ~TimeBuffer()
     {
-        for (unsigned i = 0; i < size; ++i)
-            (reinterpret_cast<T *>(index[i]))->~T();
-        delete [] data;
     }
 
     void id(int id)
@@ -184,9 +172,7 @@ class TimeBuffer
         int ptr = base + future;
         if (ptr >= (int)size)
             ptr -= size;
-        (reinterpret_cast<T *>(index[ptr]))->~T();
-        std::memset(index[ptr], 0, sizeof(T));
-        new (index[ptr]) T;
+        data[ptr] = T();
     }
 
   protected:
@@ -212,21 +198,21 @@ class TimeBuffer
     {
         int vector_index = calculateVectorIndex(idx);
 
-        return reinterpret_cast<T *>(index[vector_index]);
+        return &data[vector_index];
     }
 
     T &operator[](int idx)
     {
         int vector_index = calculateVectorIndex(idx);
 
-        return reinterpret_cast<T &>(*index[vector_index]);
+        return data[vector_index];
     }
 
     const T &operator[] (int idx) const
     {
         int vector_index = calculateVectorIndex(idx);
 
-        return reinterpret_cast<const T &>(*index[vector_index]);
+        return data[vector_index];
     }
 
     wire getWire(int idx)

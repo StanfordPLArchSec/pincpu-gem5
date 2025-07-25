@@ -191,6 +191,18 @@ class Linux : public OperatingSystem
         unsigned long int __val[LINUX__SIGSET_NWORDS];
     } sigset_t;
 
+    struct flock
+    {
+        int16_t l_type;
+        int16_t l_whence;
+        uint8_t pad1[4];
+        int64_t l_start;
+        int64_t l_len;
+        int32_t l_pid;
+        uint8_t pad2[4];
+    };
+    static_assert(sizeof(flock) == 32, "Unexpected size of struct flock!");
+
     //@{
     /// ioctl() command codes.
     static const unsigned TGT_TCGETS     = 0x5401;

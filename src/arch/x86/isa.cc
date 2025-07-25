@@ -241,6 +241,10 @@ ISA::readMiscRegNoEffect(RegIndex idx) const
     // attempt to read them directly.
     assert(misc_reg::isValid(idx));
 
+    if (misc_reg::GsBase == idx || misc_reg::GsEffBase == idx) {
+        inform("read-no-effect %x %x\n", idx, regVal[idx]);
+    }
+
     return regVal[idx];
 }
 
@@ -281,6 +285,10 @@ ISA::setMiscRegNoEffect(RegIndex idx, RegVal val)
     // attempt to write to them directly.
     assert(misc_reg::isValid(idx));
 
+    if (idx == misc_reg::GsBase || idx == misc_reg::GsEffBase) {
+        inform("set-no-effect %x %x\n", idx, val);
+    }
+
     HandyM5Reg m5Reg = regVal[misc_reg::M5Reg];
     int reg_width = 64;
     switch (idx) {
@@ -318,6 +326,8 @@ ISA::setMiscRegNoEffect(RegIndex idx, RegVal val)
 void
 ISA::setMiscReg(RegIndex idx, RegVal val)
 {
+    inform("GsBase=%#x GsEffBase=%#x set %#x %#x\n",
+           misc_reg::GsBase, misc_reg::GsEffBase, idx, val);
     RegVal newVal = val;
     switch (idx) {
       case misc_reg::Cr0:

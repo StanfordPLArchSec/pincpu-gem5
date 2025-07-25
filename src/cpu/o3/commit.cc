@@ -298,8 +298,9 @@ Commit::clearStates(ThreadID tid)
 
     // Clear out any of this thread's instructions being sent to prior stages.
     for (int i = -cpu->timeBuffer.getPast();
-         i <= cpu->timeBuffer.getFuture(); ++i)
-        cpu->timeBuffer[i].commitInfo[i] = {};
+         i <= cpu->timeBuffer.getFuture(); ++i) {
+        cpu->timeBuffer[i].commitInfo[tid] = {};
+    }
 }
 
 void Commit::drain() { drainPending = true; }

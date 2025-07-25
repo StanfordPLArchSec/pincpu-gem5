@@ -45,6 +45,7 @@
 #include <unistd.h>
 // TODO: Shouldn't do this.
 #include <sys/epoll.h>
+#include <sys/sendfile.h>
 
 #include <csignal>
 #include <iostream>
@@ -68,6 +69,8 @@
 
 namespace gem5
 {
+
+std::vector<int> exit_pids;
 
 void
 warnUnsupportedOS(std::string syscall_name)
@@ -678,6 +681,10 @@ fcntlFunc(SyscallDesc *desc, ThreadContext *tc,
       case F_SETFL: {
         int arg = varargs.get<int>();
         int rv = fcntl(sim_fd, cmd, arg);
+        if (cmd == F_SETFL && (arg & O_NONBLOCK)) { 
+            hbfdp->setFlags(hbfdp->getFlags() | O_NONBLOCK);
+            // NOTE: This is buggy. 
+        }
         return (rv == -1) ? -errno : rv;
       }
 
@@ -706,6 +713,11 @@ fcntlFunc(SyscallDesc *desc, ThreadContext *tc,
       case F_SETLK:
         warn("ignoring F_SETLK\n");
         return 0;
+
+      case F_SHLCK: {
+          warn("ignoring F_SHLCK\n");
+          return 0;
+      }
 
       default:
         fatal("fcntl: unsupported command %d\n", cmd);
@@ -1171,6 +1183,7 @@ bindFunc(SyscallDesc *desc, ThreadContext *tc,
           break;
       }
 
+      case AF_INET:
       case AF_INET6:
       case AF_NETLINK: {
           sim_sa = (struct sockaddr *) tgt_sa;
@@ -1619,6 +1632,17 @@ sched_getparamFunc(SyscallDesc *desc, ThreadContext *tc,
 }
 
 SyscallReturn
+epoll_createFunc(SyscallDesc *desc, ThreadContext *tc, int size)
+{
+    // Size must be positive.
+    // Otherwise, the size argument is meaningless.
+    if (size <= 0)
+        return -EINVAL;
+
+    return epoll_create1Func(desc, tc, 0);
+}
+
+SyscallReturn
 epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags)
 {
     const int sim_fd = epoll_create1(flags);
@@ -1658,6 +1682,9 @@ epoll_waitFunc(SyscallDesc *desc, ThreadContext *tc,
                              int tgt_epfd, VPtr<> tgt_events,
                              int maxevents, int timeout)
 {
+    if (getenv("DIE"))
+        return exitGroupFunc(desc, tc, 0);
+        
     const auto p = tc->getProcessPtr();
 
     // Get sim fd.
@@ -1696,6 +1723,40 @@ memfd_createFunc(SyscallDesc *desc, ThreadContext *tc,
                  VPtr<> name, unsigned int flags)
 {
     return -ENFILE;
+}
+
+SyscallReturn
+rt_sigsuspendFunc(SyscallDesc *desc, ThreadContext *tc,
+                                VPtr<> mask)
+{
+    return -EINTR;
+}
+
+SyscallReturn
+rt_sigtimedwaitFunc(SyscallDesc *desc, ThreadContext *tc,
+                    VPtr<> set, VPtr<> info, VPtr<> timeout)
+{
+    return -EAGAIN;
+}
+
+SyscallReturn
+sendfileFunc(SyscallDesc *desc, ThreadContext *tc,
+             int tgt_out_fd, int tgt_in_fd, VPtr<off_t> tgt_offset, size_t count)
+{
+    // Get the sim fds.
+    auto p = tc->getProcessPtr();
+    auto out_fdp = std::dynamic_pointer_cast<HBFDEntry>((*p->fds)[tgt_out_fd]);
+    auto in_fdp = std::dynamic_pointer_cast<HBFDEntry>((*p->fds)[tgt_in_fd]);
+    panic_if(!out_fdp || !in_fdp, "sendfile: unhandled non-host-backed FDs\n");
+    const int sim_out_fd = out_fdp->getSimFD();
+    const int sim_in_fd = in_fdp->getSimFD();
+
+    // Read the offset.
+    off_t sim_offset = *tgt_offset;
+    ssize_t result = sendfile(sim_out_fd, sim_in_fd, &sim_offset, count);
+    *tgt_offset = sim_offset;
+
+    return result;
 }
 
 } // namespace gem5

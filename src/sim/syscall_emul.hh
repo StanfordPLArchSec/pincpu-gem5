@@ -356,6 +356,7 @@ SyscallReturn getsocknameFunc(SyscallDesc *desc, ThreadContext *tc,
 SyscallReturn sched_getparamFunc(SyscallDesc *desc, ThreadContext *tc,
                                  int pid, VPtr<int> paramPtr);
 
+SyscallReturn epoll_createFunc(SyscallDesc *desc, ThreadContext *tc, int size);
 SyscallReturn epoll_create1Func(SyscallDesc *desc, ThreadContext *tc, int flags);
 SyscallReturn epoll_ctlFunc(SyscallDesc *desc, ThreadContext *tc, int epfd,
                             int op, int fd, VPtr<struct epoll_event> event);
@@ -365,6 +366,8 @@ SyscallReturn epoll_waitFunc(SyscallDesc *desc, ThreadContext *tc,
 SyscallReturn ioplFunc(SyscallDesc *desc, ThreadContext *tc, int level);
 SyscallReturn memfd_createFunc(SyscallDesc *desc, ThreadContext *tc,
                                VPtr<> name, unsigned int flags);
+SyscallReturn rt_sigsuspendFunc(SyscallDesc *desc, ThreadContext *tc,
+                                VPtr<> mask);
 
 template <class OS>
 SyscallReturn
@@ -804,6 +807,8 @@ ioctlFunc(SyscallDesc *desc, ThreadContext *tc,
 #if defined(__linux__)
           case SIOCGIFHWADDR:
 #endif
+          case FIONBIO:
+          case FIOASYNC:
           case SIOCGIFMTU: {
             BufferArg req_arg(addr, sizeof(ifreq));
             req_arg.copyIn(SETranslatingPortProxy(tc));
@@ -813,6 +818,17 @@ ioctlFunc(SyscallDesc *desc, ThreadContext *tc,
                 req_arg.copyOut(SETranslatingPortProxy(tc));
             return status;
           }
+#if 0
+          case FIONBIO: {
+              BufferArg flag_arg(addr, sizeof(int));
+              flag_arg.copyIn(SETranslatingPortProxy(tc));
+              status = ioctl(sfdp->getSimFD(), req, flag_arg.bufferPtr());
+              
+              
+            warn_once("warn: ignoring ioctl FIONBIO\n");
+            return 0;
+          }
+#endif
         }
     }
 
@@ -1913,7 +1929,9 @@ doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
 
     desc->returnInto(ctc, 0);
 
+#if 0
     ctc->halt(); // Halt so that PinCPU can deactivate the address space.
+#endif
     ctc->activate();
 
     if (flags & OS::TGT_CLONE_VFORK) {
@@ -2712,6 +2730,28 @@ tgkillFunc(SyscallDesc *desc, ThreadContext *tc, int tgid, int tid, int sig)
 
 template <class OS>
 SyscallReturn
+killFunc(SyscallDesc *desc, ThreadContext *tc, int pid, int sig)
+{
+    System *sys = tc->getSystemPtr();
+
+    if (sig != 0 && sig != OS::TGT_SIGINT)
+        return -EINVAL;
+
+    if (sig == OS::TGT_SIGINT) {
+        for (ThreadContext *tc : sys->threads) {
+            if (Process *p = tc->getProcessPtr()) {
+                if (p->pid() == pid || p->exitGroup) {
+                    exitGroupFunc(desc, tc, 0);
+                }
+            }
+        }
+    }
+    
+    return 0;
+}
+
+template <class OS>
+SyscallReturn
 socketFunc(SyscallDesc *desc, ThreadContext *tc,
            int domain, int type, int prot)
 {
@@ -3119,13 +3159,17 @@ success:
 
 template <class OS>
 SyscallReturn
-acceptFunc(SyscallDesc *desc, ThreadContext *tc,
-           int tgt_fd, VPtr<> addrPtr, VPtr<> lenPtr)
+accept4Func(SyscallDesc *desc, ThreadContext *tc,
+            int tgt_fd, VPtr<> addrPtr, VPtr<> lenPtr,
+            int flags)
 {
     struct sockaddr sa;
     socklen_t addrLen;
     int host_fd;
     auto p = tc->getProcessPtr();
+
+    panic_if(flags & ~SOCK_NONBLOCK, "accept4: unhandled flags: %#x\n",
+             flags & ~SOCK_NONBLOCK);
 
     BufferArg *lenBufPtr = nullptr;
     BufferArg *addrBufPtr = nullptr;
@@ -3161,7 +3205,7 @@ acceptFunc(SyscallDesc *desc, ThreadContext *tc,
                sizeof(struct sockaddr));
     }
 
-    host_fd = accept(sim_fd, &sa, &addrLen);
+    host_fd = accept4(sim_fd, &sa, &addrLen, flags);
 
     if (host_fd == -1)
         return -errno;
@@ -3180,7 +3224,18 @@ acceptFunc(SyscallDesc *desc, ThreadContext *tc,
 
     auto afdp = std::make_shared<SocketFDEntry>(host_fd, sfdp->_domain,
                                                 sfdp->_type, sfdp->_protocol);
+    if ((flags & OS::TGT_O_NONBLOCK))
+        afdp->setFlags(afdp->getFlags() | OS::TGT_O_NONBLOCK);
+
     return p->fds->allocFD(afdp);
+}
+
+template <class OS>
+SyscallReturn
+acceptFunc(SyscallDesc *desc, ThreadContext *tc, int tgt_fd,
+           VPtr<> addr_ptr, VPtr<> len_ptr)
+{
+    return accept4Func<OS>(desc, tc, tgt_fd, addr_ptr, len_ptr, 0);
 }
 
 /// Target eventfd() function.
@@ -3502,6 +3557,12 @@ setgidFunc(SyscallDesc *desc, ThreadContext *tc, typename OS::gid_t gid)
     return 0;
 }
 
+SyscallReturn rt_sigtimedwaitFunc(SyscallDesc *desc, ThreadContext *tc,
+                                  VPtr<> set, VPtr<> info, VPtr<> timeout);
+SyscallReturn sendfileFunc(SyscallDesc *desc, ThreadContext *tc,
+                           int out_fd, int in_fd, VPtr<off_t> offset, size_t count);
+
 } // namespace gem5
+
 
 #endif // __SIM_SYSCALL_EMUL_HH__
