@@ -127,6 +127,7 @@ if env['CONF']['BUILD_ISA']:
             'tools/addrcount.cc',
             'tools/bbtrace.cc',
             'tools/util.cc',
+            'tools/opmap.cc',
         ],
         tags = 'pin',
     )

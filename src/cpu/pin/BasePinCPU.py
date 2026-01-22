@@ -13,6 +13,7 @@ class BasePinCPU(BaseCPU):
     def memory_mode(cls):
         return "atomic"
 
+    # TODO: Probably want to support this.
     @classmethod
     def support_take_over(cls):
         return False
